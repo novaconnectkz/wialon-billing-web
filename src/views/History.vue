@@ -2,15 +2,27 @@
   <div class="history-page">
     <div class="page-header">
       <h1 class="page-title">История снимков</h1>
-      <Button 
-        label="Создать снимки" 
-        severity="success"
-        @click="showCreateDialog = true"
-      >
-        <template #icon>
-          <Plus :size="18" />
-        </template>
-      </Button>
+      <div class="header-actions">
+        <Button 
+          label="Очистить всё" 
+          severity="danger"
+          outlined
+          @click="showClearDialog = true"
+        >
+          <template #icon>
+            <Trash2 :size="18" />
+          </template>
+        </Button>
+        <Button 
+          label="Создать снимки" 
+          severity="success"
+          @click="showCreateDialog = true"
+        >
+          <template #icon>
+            <Plus :size="18" />
+          </template>
+        </Button>
+      </div>
     </div>
     
     <Card>
@@ -116,14 +128,42 @@
         />
       </template>
     </Dialog>
+    
+    <!-- Диалог очистки всех снимков -->
+    <Dialog 
+      v-model:visible="showClearDialog" 
+      header="Очистить все снимки"
+      :modal="true"
+      :style="{ width: '400px' }"
+    >
+      <div class="clear-form">
+        <Message severity="warn" :closable="false">
+          Это действие удалит ВСЕ снимки и изменения. Это необратимо!
+        </Message>
+        <div class="form-field">
+          <label>Введите код подтверждения:</label>
+          <InputText v-model="clearCode" placeholder="Код подтверждения" />
+        </div>
+        <Message v-if="clearError" severity="error" :closable="false">{{ clearError }}</Message>
+      </div>
+      <template #footer>
+        <Button label="Отмена" text @click="showClearDialog = false" />
+        <Button 
+          label="Удалить всё" 
+          severity="danger" 
+          :loading="clearing"
+          @click="clearAllSnapshots"
+        />
+      </template>
+    </Dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
-import { getSnapshots, createSnapshotsForDate as apiCreateSnapshots } from '@/services/api'
-import { Eye, Plus } from 'lucide-vue-next'
+import { getSnapshots, createSnapshotsForDate as apiCreateSnapshots, clearAllSnapshots as apiClearSnapshots } from '@/services/api'
+import { Eye, Plus, Trash2 } from 'lucide-vue-next'
 
 const toast = useToast()
 const snapshots = ref([])
@@ -137,6 +177,12 @@ const createDate = ref(new Date())
 const creating = ref(false)
 const createError = ref('')
 const createSuccess = ref('')
+
+// Очистка снимков
+const showClearDialog = ref(false)
+const clearCode = ref('')
+const clearing = ref(false)
+const clearError = ref('')
 
 const loadSnapshots = async () => {
   loading.value = true
@@ -193,6 +239,34 @@ const createSnapshotsForDate = async () => {
     toast.add({ severity: 'error', summary: 'Ошибка', detail: createError.value })
   } finally {
     creating.value = false
+  }
+}
+
+const clearAllSnapshots = async () => {
+  clearError.value = ''
+  clearing.value = true
+  
+  try {
+    const { data } = await apiClearSnapshots(clearCode.value)
+    
+    toast.add({ 
+      severity: 'success', 
+      summary: 'Успех', 
+      detail: `Удалено ${data.count} снимков`,
+      life: 5000
+    })
+    
+    // Перезагружаем список
+    await loadSnapshots()
+    
+    // Закрываем диалог
+    showClearDialog.value = false
+    clearCode.value = ''
+  } catch (error) {
+    clearError.value = error.response?.data?.error || error.message
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: clearError.value })
+  } finally {
+    clearing.value = false
   }
 }
 
@@ -270,5 +344,16 @@ onMounted(() => {
 
 .form-field label {
   font-weight: 500;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.clear-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 </style>

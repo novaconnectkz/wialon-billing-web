@@ -66,6 +66,7 @@ export const getDashboard = (year, month) => api.get('/dashboard', { params: { y
 export const getSnapshots = () => api.get('/snapshots')
 export const createSnapshotsForDate = (date) => api.post('/snapshots/date', { date })
 export const createSnapshot = (accountId) => api.post('/snapshots', { account_id: accountId })
+export const clearAllSnapshots = (confirmCode) => api.delete('/snapshots/clear', { data: { confirm_code: confirmCode } })
 
 // Changes
 export const getChanges = () => api.get('/changes')
