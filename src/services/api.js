@@ -90,6 +90,7 @@ export const getInvoices = () => api.get('/invoices')
 export const getInvoice = (id) => api.get(`/invoices/${id}`)
 export const generateInvoices = (year, month) => api.post('/invoices/generate', { year, month })
 export const updateInvoiceStatus = (id, status) => api.put(`/invoices/${id}/status`, { status })
+export const clearAllInvoices = (confirmCode) => api.delete('/invoices/clear', { data: { confirm_code: confirmCode } })
 
 // Массовая привязка модулей
 export const assignModuleBulk = (moduleId, accountIds) =>

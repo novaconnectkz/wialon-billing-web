@@ -65,6 +65,14 @@
       </div>
       <div class="action-right">
         <Button 
+          label="Удалить все" 
+          icon="pi pi-trash" 
+          severity="danger"
+          outlined
+          @click="openClearDialog"
+          :disabled="invoices.length === 0"
+        />
+        <Button 
           label="Сгенерировать счета" 
           icon="pi pi-plus" 
           :loading="generating"
@@ -207,22 +215,55 @@
         </div>
       </div>
     </Dialog>
+
+    <!-- Диалог удаления всех счетов -->
+    <Dialog v-model:visible="clearDialog" header="Удаление всех счетов" :style="{ width: '480px' }" modal>
+      <div class="clear-dialog-content">
+        <div class="warning-alert">
+          <i class="pi pi-exclamation-triangle warning-icon"></i>
+          <span>Это действие удалит <strong>ВСЕ</strong> счета ({{ invoices.length }} шт.). Это необратимо!</span>
+        </div>
+        <div class="confirm-code-section">
+          <label for="confirmCode">Введите код подтверждения:</label>
+          <InputText 
+            id="confirmCode"
+            v-model="confirmCode" 
+            placeholder="Код подтверждения"
+            class="confirm-input"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Отмена" severity="secondary" text @click="clearDialog = false" />
+        <Button 
+          label="Удалить всё" 
+          severity="danger" 
+          icon="pi pi-trash"
+          :loading="clearing"
+          @click="clearAllInvoicesClick"
+        />
+      </template>
+    </Dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getInvoices, generateInvoices, updateInvoiceStatus } from '@/services/api'
+import { getInvoices, generateInvoices, updateInvoiceStatus, clearAllInvoices } from '@/services/api'
 import { FileText, Clock, CheckCircle, DollarSign } from 'lucide-vue-next'
 import { useToast } from 'primevue/usetoast'
 import Tag from 'primevue/tag'
+import InputText from 'primevue/inputtext'
 
 const toast = useToast()
 const invoices = ref([])
 const loading = ref(false)
 const generating = ref(false)
+const clearing = ref(false)
 const viewDialog = ref(false)
+const clearDialog = ref(false)
 const selectedInvoice = ref(null)
+const confirmCode = ref('')
 
 // Фильтры
 const now = new Date()
@@ -361,6 +402,32 @@ const formatPeriod = (date) => {
 const formatCurrency = (value) => {
   if (value == null) return '0'
   return value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+const openClearDialog = () => {
+  confirmCode.value = ''
+  clearDialog.value = true
+}
+
+const clearAllInvoicesClick = async () => {
+  if (!confirmCode.value) {
+    toast.add({ severity: 'warn', summary: 'Внимание', detail: 'Введите код подтверждения', life: 3000 })
+    return
+  }
+
+  clearing.value = true
+  try {
+    const { data } = await clearAllInvoices(confirmCode.value)
+    toast.add({ severity: 'success', summary: 'Готово', detail: `Удалено ${data.count} счетов`, life: 3000 })
+    clearDialog.value = false
+    confirmCode.value = ''
+    await loadInvoices()
+  } catch (error) {
+    const message = error.response?.data?.error || 'Ошибка удаления'
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: message, life: 3000 })
+  } finally {
+    clearing.value = false
+  }
 }
 
 onMounted(() => {
@@ -596,5 +663,60 @@ onMounted(() => {
   .year-select, .month-select {
     width: 100%;
   }
+}
+
+/* Диалог удаления */
+.clear-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.warning-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(234, 179, 8, 0.15);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  border-left: 4px solid #eab308;
+  border-radius: 8px;
+  color: #eab308;
+}
+
+.warning-alert .warning-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.warning-alert span {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.warning-alert strong {
+  color: inherit;
+}
+
+.confirm-code-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.confirm-code-section label {
+  font-size: 0.95rem;
+  color: var(--text-color);
+}
+
+.confirm-input {
+  width: 100%;
+}
+
+.action-right {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
 }
 </style>

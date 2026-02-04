@@ -75,6 +75,15 @@
           size="small"
           @click="resetFilters"
         />
+        <Button 
+          type="button" 
+          label="Очистить всё" 
+          icon="pi pi-trash" 
+          severity="danger" 
+          outlined
+          size="small"
+          @click="openClearDialog"
+        />
       </div>
     </div>
     
@@ -128,17 +137,52 @@
         </DataTable>
       </template>
     </Card>
+
+    <!-- Диалог очистки всех снимков -->
+    <Dialog v-model:visible="clearDialog" header="Очистить все снимки" :style="{ width: '480px' }" modal>
+      <div class="clear-dialog-content">
+        <div class="warning-alert">
+          <i class="pi pi-exclamation-triangle warning-icon"></i>
+          <span>Это действие удалит <strong>ВСЕ</strong> снимки и изменения. Это необратимо!</span>
+        </div>
+        <div class="confirm-code-section">
+          <label for="confirmCode">Введите код подтверждения:</label>
+          <InputText 
+            id="confirmCode"
+            v-model="confirmCode" 
+            placeholder="Код подтверждения"
+            class="confirm-input"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Отмена" severity="secondary" text @click="clearDialog = false" />
+        <Button 
+          label="Удалить всё" 
+          severity="danger" 
+          icon="pi pi-trash"
+          :loading="clearing"
+          @click="clearAllSnapshotsClick"
+        />
+      </template>
+    </Dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getSnapshots } from '@/services/api'
+import { getSnapshots, clearAllSnapshots } from '@/services/api'
 import { Plus, Minus, Activity, Calendar as CalendarIcon, FilterX } from 'lucide-vue-next'
 import InputSwitch from 'primevue/inputswitch'
+import InputText from 'primevue/inputtext'
+import { useToast } from 'primevue/usetoast'
 
+const toast = useToast()
 const snapshots = ref([])
 const loading = ref(false)
+const clearing = ref(false)
+const clearDialog = ref(false)
+const confirmCode = ref('')
 const onlyWithChanges = ref(true)
 
 // Инициализация периода текущим месяцем
@@ -201,6 +245,32 @@ const loadSnapshots = async () => {
 const formatDate = (date) => {
   if (!date) return '—'
   return new Date(date).toLocaleDateString('ru-RU')
+}
+
+const openClearDialog = () => {
+  confirmCode.value = ''
+  clearDialog.value = true
+}
+
+const clearAllSnapshotsClick = async () => {
+  if (!confirmCode.value) {
+    toast.add({ severity: 'warn', summary: 'Внимание', detail: 'Введите код подтверждения', life: 3000 })
+    return
+  }
+
+  clearing.value = true
+  try {
+    const { data } = await clearAllSnapshots(confirmCode.value)
+    toast.add({ severity: 'success', summary: 'Готово', detail: `Удалено ${data.count} снимков`, life: 3000 })
+    clearDialog.value = false
+    confirmCode.value = ''
+    await loadSnapshots()
+  } catch (error) {
+    const message = error.response?.data?.error || 'Ошибка удаления'
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: message, life: 3000 })
+  } finally {
+    clearing.value = false
+  }
 }
 
 onMounted(() => {
@@ -420,5 +490,60 @@ onMounted(() => {
   .filter-actions {
     margin-left: 0;
   }
+}
+
+/* Диалог очистки снимков */
+.clear-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.warning-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(234, 179, 8, 0.15);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  border-left: 4px solid #eab308;
+  border-radius: 8px;
+  color: #eab308;
+}
+
+.warning-alert .warning-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.warning-alert span {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.warning-alert strong {
+  color: inherit;
+}
+
+.confirm-code-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.confirm-code-section label {
+  font-size: 0.95rem;
+  color: var(--text-color);
+}
+
+.confirm-input {
+  width: 100%;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
 }
 </style>
