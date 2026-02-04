@@ -120,9 +120,9 @@
               <span v-else class="empty-dash">—</span>
             </template>
           </Column>
-          <Column field="created_at" header="Дата" style="width: 120px; text-align: right">
+          <Column field="snapshot_date" header="Дата" style="width: 120px; text-align: right">
             <template #body="{ data }">
-              <span class="date-cell">{{ formatDate(data.created_at) }}</span>
+              <span class="date-cell">{{ formatDate(data.snapshot_date) }}</span>
             </template>
           </Column>
         </DataTable>
@@ -173,7 +173,7 @@ const filteredSnapshots = computed(() => {
     endDate.setHours(23, 59, 59, 999)
 
     result = result.filter(s => {
-      const date = new Date(s.created_at)
+      const date = new Date(s.snapshot_date)
       return date >= startDate && date <= endDate
     })
   }
