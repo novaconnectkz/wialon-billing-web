@@ -1,0 +1,137 @@
+/* Глобальные стили Wialon Billing */
+
+:root {
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Типографика */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* Ссылки */
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Адаптивные таблицы */
+.p-datatable-wrapper {
+  overflow-x: auto;
+}
+
+/* Улучшенные карточки */
+.p-card {
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.p-card .p-card-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+/* Кнопки */
+.p-button {
+  font-weight: 500;
+}
+
+/* Инпуты */
+.p-inputtext {
+  border-radius: 8px;
+}
+
+/* Dropdown */
+.p-dropdown {
+  border-radius: 8px;
+}
+
+/* Toast */
+.p-toast {
+  z-index: 9999;
+}
+
+/* Sidebar (mobile) */
+.mobile-sidebar .p-sidebar-content {
+  padding: 0;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
+  }
+  
+  .p-card {
+    border-radius: 8px;
+  }
+  
+  .p-datatable .p-datatable-thead > tr > th,
+  .p-datatable .p-datatable-tbody > tr > td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .p-datatable .p-datatable-thead > tr > th,
+  .p-datatable .p-datatable-tbody > tr > td {
+    padding: 0.5rem 0.25rem;
+  }
+}
+
+/* Утилиты */
+.w-full {
+  width: 100%;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.mt-1 { margin-top: 0.5rem; }
+.mt-2 { margin-top: 1rem; }
+.mt-3 { margin-top: 1.5rem; }
+.mb-1 { margin-bottom: 0.5rem; }
+.mb-2 { margin-bottom: 1rem; }
+.mb-3 { margin-bottom: 1.5rem; }
+
+.mr-1 { margin-right: 0.5rem; }
+.mr-2 { margin-right: 1rem; }
+.ml-1 { margin-left: 0.5rem; }
+.ml-2 { margin-left: 1rem; }
+
+/* Анимации */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin-anim {
+  animation: spin 1s linear infinite;
+}

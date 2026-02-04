@@ -1,0 +1,20 @@
+# Зависимости
+node_modules/
+
+# Сборка
+dist/
+.output/
+
+# Логи
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Временные файлы
+.DS_Store
+*.local
