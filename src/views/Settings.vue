@@ -1367,15 +1367,16 @@ onMounted(() => {
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: var(--primary-color);
-  color: white;
+  background: rgba(100, 160, 180, 0.3);
+  color: rgba(150, 200, 220, 0.8);
   cursor: pointer;
   transition: transform 0.15s, box-shadow 0.15s;
 }
 
 .module-icon:hover {
   transform: scale(1.1);
-  box-shadow: 0 2px 8px rgba(var(--primary-color-rgb), 0.4);
+  background: rgba(100, 160, 180, 0.5);
+  box-shadow: 0 2px 8px rgba(100, 160, 180, 0.2);
 }
 
 .no-modules {
@@ -1448,5 +1449,26 @@ onMounted(() => {
 
 .field-grid .full-width {
   grid-column: 1 / -1;
+}
+
+/* Приглушённые теги валюты */
+:deep(.p-tag) {
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+:deep(.p-tag-info) {
+  background: rgba(100, 160, 180, 0.25) !important;
+  color: rgba(150, 200, 220, 0.9) !important;
+}
+
+:deep(.p-tag-success) {
+  background: rgba(100, 180, 100, 0.25) !important;
+  color: rgba(150, 220, 150, 0.9) !important;
+}
+
+:deep(.p-tag-warning) {
+  background: rgba(180, 150, 80, 0.25) !important;
+  color: rgba(220, 200, 120, 0.9) !important;
 }
 </style>
