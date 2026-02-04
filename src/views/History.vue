@@ -49,9 +49,9 @@
               <span v-if="!data.units_created && !data.units_deleted">—</span>
             </template>
           </Column>
-          <Column field="created_at" header="Дата создания">
+          <Column header="Дата снимка">
             <template #body="{ data }">
-              {{ formatDate(data.created_at) }}
+              {{ formatDate(data.snapshot_date) }}
             </template>
           </Column>
           <Column header="Действия">
@@ -92,8 +92,8 @@
           <span class="value">{{ selectedSnapshot.total_units }}</span>
         </div>
         <div class="detail-row">
-          <span class="label">Дата:</span>
-          <span class="value">{{ formatDate(selectedSnapshot.created_at) }}</span>
+          <span class="label">Дата снимка:</span>
+          <span class="value">{{ formatDate(selectedSnapshot.snapshot_date) }}</span>
         </div>
       </div>
     </Dialog>
