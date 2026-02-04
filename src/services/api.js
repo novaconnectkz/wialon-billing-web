@@ -100,3 +100,22 @@ export const unassignModuleBulk = (moduleId, accountIds) =>
 // Массовая установка валюты
 export const setCurrencyBulk = (accountIds, currency) =>
     api.post('/accounts/set-currency-bulk', { account_ids: accountIds, currency })
+
+// === AI Analytics ===
+
+// Настройки AI
+export const getAISettings = () => api.get('/ai/settings')
+export const updateAISettings = (data) => api.put('/ai/settings', data)
+
+// Инсайты
+export const getAIInsights = () => api.get('/ai/insights')
+export const getAccountAIInsights = (accountId) => api.get(`/ai/insights/account/${accountId}`)
+export const sendInsightFeedback = (insightId, helpful, comment = '') =>
+    api.post(`/ai/insights/${insightId}/feedback`, { helpful, comment })
+
+// Статистика использования
+export const getAIUsage = (days = 30) => api.get('/ai/usage', { params: { days } })
+
+// Ручной запуск анализа
+export const triggerAIAnalysis = () => api.post('/ai/analyze')
+

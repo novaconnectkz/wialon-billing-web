@@ -417,6 +417,103 @@
       </template>
     </Card>
     
+    <!-- AI Аналитика -->
+    <Card v-if="activeTab === 'ai'" class="settings-card">
+      <template #title>
+        <div class="card-header">
+          <span>Gemini AI</span>
+          <Button 
+            label="Сохранить"
+            @click="saveAISettings"
+            :loading="savingAI"
+          />
+        </div>
+      </template>
+      <template #content>
+        <div class="ai-settings-form">
+          <div class="field-grid">
+            <div class="field">
+              <label>API ключ Google</label>
+              <Password 
+                v-model="aiForm.api_key" 
+                class="w-full" 
+                toggleMask 
+                :feedback="false"
+                placeholder="Введите API ключ Gemini"
+              />
+              <small class="text-muted">Получите ключ в <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></small>
+            </div>
+            <div class="field">
+              <label>Модель</label>
+              <Dropdown 
+                v-model="aiForm.model"
+                :options="aiModels"
+                optionLabel="label"
+                optionValue="value"
+                class="w-full"
+              />
+            </div>
+            <div class="field">
+              <label>Лимит запросов (в час)</label>
+              <InputNumber v-model="aiForm.rate_limit_per_hour" :min="1" :max="60" />
+            </div>
+            <div class="field">
+              <label>Время жизни кэша (часов)</label>
+              <InputNumber v-model="aiForm.cache_ttl_hours" :min="1" :max="168" />
+            </div>
+          </div>
+          
+          <div class="switch-row">
+            <InputSwitch v-model="aiForm.enabled" />
+            <span>Включить AI аналитику</span>
+          </div>
+          
+          <div class="switch-row">
+            <InputSwitch v-model="aiForm.privacy_mode" />
+            <span>Режим приватности (заменять названия на ID)</span>
+          </div>
+        </div>
+        
+        <!-- Статистика использования -->
+        <div v-if="aiUsage" class="ai-usage-stats">
+          <h4>Статистика за 30 дней</h4>
+          <div class="usage-grid">
+            <div class="usage-item">
+              <span class="usage-label">Запросов</span>
+              <span class="usage-value">{{ aiUsage.total_requests }}</span>
+            </div>
+            <div class="usage-item">
+              <span class="usage-label">Успешных</span>
+              <span class="usage-value success">{{ aiUsage.successful_requests }}</span>
+            </div>
+            <div class="usage-item">
+              <span class="usage-label">Ошибок</span>
+              <span class="usage-value error">{{ aiUsage.failed_requests }}</span>
+            </div>
+            <div class="usage-item">
+              <span class="usage-label">Токенов</span>
+              <span class="usage-value">{{ aiUsage.total_tokens?.toLocaleString() }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Ручной запуск -->
+        <div class="ai-actions">
+          <Button 
+            label="Запустить анализ"
+            severity="info"
+            @click="runAIAnalysis"
+            :loading="analyzingAI"
+            :disabled="!aiForm.enabled || !hasAIKey"
+          >
+            <template #icon>
+              <Sparkles :size="18" class="mr-2" />
+            </template>
+          </Button>
+        </div>
+      </template>
+    </Card>
+    
     <!-- Диалог подключения -->
     <Dialog 
       v-model:visible="showConnectionDialog" 
@@ -658,6 +755,8 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Tag from 'primevue/tag'
 import Calendar from 'primevue/calendar'
+import Password from 'primevue/password'
+import InputSwitch from 'primevue/inputswitch'
 import { 
   getAccounts, toggleAccount as apiToggleAccount, syncAccounts,
   getModules, createModule, updateModule, deleteModule,
@@ -667,7 +766,8 @@ import {
   updateConnection as apiUpdateConnection, deleteConnection as apiDeleteConnection,
   testConnection as apiTestConnection,
   assignModuleBulk, unassignModuleBulk, setCurrencyBulk,
-  updateAccountDetails as apiUpdateAccountDetails
+  updateAccountDetails as apiUpdateAccountDetails,
+  getAISettings, updateAISettings, getAIUsage, triggerAIAnalysis
 } from '@/services/api'
 import { 
   RefreshCw, 
@@ -688,7 +788,8 @@ import {
   XCircle,
   X,
   Circle,
-  FileText
+  FileText,
+  Sparkles
 } from 'lucide-vue-next'
 
 const toast = useToast()
@@ -698,7 +799,8 @@ const tabs = [
   { id: 'modules', label: 'Модули', icon: Package },
   { id: 'rates', label: 'Курсы', icon: LineChart },
   { id: 'requisites', label: 'Реквизиты', icon: FileText },
-  { id: 'connections', label: 'Подключения', icon: Link2 }
+  { id: 'connections', label: 'Подключения', icon: Link2 },
+  { id: 'ai', label: 'AI', icon: Sparkles }
 ]
 
 const activeTab = ref('accounts')
@@ -728,6 +830,24 @@ const billingCurrencies = [
   { label: 'EUR (Евро)', value: 'EUR' },
   { label: 'RUB (Рубли)', value: 'RUB' },
   { label: 'KZT (Тенге)', value: 'KZT' }
+]
+
+// AI Аналитика
+const savingAI = ref(false)
+const analyzingAI = ref(false)
+const aiUsage = ref(null)
+const aiForm = ref({
+  enabled: false,
+  api_key: '',
+  model: 'gemini-1.5-flash',
+  rate_limit_per_hour: 1,
+  cache_ttl_hours: 24,
+  privacy_mode: false
+})
+const hasAIKey = computed(() => aiForm.value.api_key?.length > 0 || aiForm.value.has_api_key)
+const aiModels = [
+  { label: 'Gemini 1.5 Flash (быстрый)', value: 'gemini-1.5-flash' },
+  { label: 'Gemini 1.5 Pro (точный)', value: 'gemini-1.5-pro' }
 ]
 
 // Wialon хосты
@@ -876,6 +996,45 @@ const saveRequisites = async () => {
     toast.add({ severity: 'error', summary: 'Ошибка', detail: error.response?.data?.error || error.message })
   } finally {
     savingRequisites.value = false
+  }
+}
+
+// AI Аналитика
+const loadAIData = async () => {
+  try {
+    const settingsRes = await getAISettings()
+    Object.assign(aiForm.value, settingsRes.data)
+    
+    // Загрузка статистики
+    const usageRes = await getAIUsage(30)
+    aiUsage.value = usageRes.data.stats
+  } catch (error) {
+    // AI может быть не настроен - это OK
+    console.log('AI не настроен:', error.message)
+  }
+}
+
+const saveAISettings = async () => {
+  savingAI.value = true
+  try {
+    await updateAISettings(aiForm.value)
+    toast.add({ severity: 'success', summary: 'Сохранено', detail: 'Настройки AI обновлены' })
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: error.response?.data?.error || error.message })
+  } finally {
+    savingAI.value = false
+  }
+}
+
+const runAIAnalysis = async () => {
+  analyzingAI.value = true
+  try {
+    await triggerAIAnalysis()
+    toast.add({ severity: 'info', summary: 'Запущено', detail: 'Анализ запущен в фоне' })
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: error.response?.data?.error || error.message })
+  } finally {
+    analyzingAI.value = false
   }
 }
 
@@ -1172,6 +1331,7 @@ const getWialonToken = () => {
 onMounted(() => {
   loadData()
   loadConnections()
+  loadAIData()
   
   // Проверка callback от OAuth
   const pendingConnectionStr = localStorage.getItem('pendingConnection')
@@ -1470,5 +1630,69 @@ onMounted(() => {
 :deep(.p-tag-warning) {
   background: rgba(180, 150, 80, 0.25) !important;
   color: rgba(220, 200, 120, 0.9) !important;
+}
+
+/* AI Аналитика */
+.ai-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.switch-row span {
+  color: var(--text-color);
+}
+
+.ai-usage-stats {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--surface-border);
+}
+
+.ai-usage-stats h4 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  color: var(--text-color-secondary);
+}
+
+.usage-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+.usage-item {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  background: var(--surface-100);
+  border-radius: 8px;
+}
+
+.usage-label {
+  font-size: 0.75rem;
+  color: var(--text-color-secondary);
+  margin-bottom: 4px;
+}
+
+.usage-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.usage-value.success { color: #22c55e; }
+.usage-value.error { color: #ef4444; }
+
+.ai-actions {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--surface-border);
 }
 </style>

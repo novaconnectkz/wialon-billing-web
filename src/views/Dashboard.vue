@@ -62,6 +62,11 @@
       </div>
     </div>
     
+    <!-- AI Аналитика -->
+    <div class="ai-section">
+      <AiDashboardWidget />
+    </div>
+    
     <!-- Снимки -->
     <Card class="data-card">
       <template #title>
@@ -204,6 +209,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { getDashboard, getAccountStats } from '@/services/api'
+import AiDashboardWidget from '@/components/AiDashboardWidget.vue'
 import { 
   Truck, 
   Euro, 
