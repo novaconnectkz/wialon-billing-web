@@ -697,8 +697,8 @@ const tabs = [
   { id: 'accounts', label: 'Аккаунты', icon: Users },
   { id: 'modules', label: 'Модули', icon: Package },
   { id: 'rates', label: 'Курсы', icon: LineChart },
-  { id: 'connections', label: 'Подключения', icon: Link2 },
-  { id: 'requisites', label: 'Реквизиты', icon: FileText }
+  { id: 'requisites', label: 'Реквизиты', icon: FileText },
+  { id: 'connections', label: 'Подключения', icon: Link2 }
 ]
 
 const activeTab = ref('accounts')
