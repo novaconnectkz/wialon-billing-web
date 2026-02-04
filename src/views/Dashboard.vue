@@ -137,9 +137,9 @@
               </span>
             </template>
           </Column>
-          <Column field="created_at" header="Дата" :sortable="true">
+          <Column field="snapshot_date" header="Дата" :sortable="true">
             <template #body="{ data }">
-              {{ formatDate(data.created_at) }}
+              {{ formatDate(data.snapshot_date) }}
             </template>
           </Column>
           <Column header="" style="width: 80px">
@@ -248,7 +248,7 @@ const filteredSnapshots = computed(() => {
   endDate.setHours(23, 59, 59, 999)
   
   return dashboard.value.snapshots.filter(s => {
-    const snapshotDate = new Date(s.created_at)
+    const snapshotDate = new Date(s.snapshot_date)
     return snapshotDate >= startDate && snapshotDate <= endDate
   })
 })
@@ -260,7 +260,7 @@ const totalDeactivated = computed(() => {
   const latestByAccount = new Map()
   for (const s of filteredSnapshots.value) {
     const existing = latestByAccount.get(s.account_id)
-    if (!existing || new Date(s.created_at) > new Date(existing.created_at)) {
+    if (!existing || new Date(s.snapshot_date) > new Date(existing.snapshot_date)) {
       latestByAccount.set(s.account_id, s)
     }
   }
