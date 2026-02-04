@@ -47,6 +47,12 @@ const routes = [
         name: 'Invoices',
         component: () => import('@/views/Invoices.vue'),
         meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+        path: '/ai-analytics',
+        name: 'AiAnalytics',
+        component: () => import('@/views/AiAnalytics.vue'),
+        meta: { requiresAuth: true }
     }
 ]
 

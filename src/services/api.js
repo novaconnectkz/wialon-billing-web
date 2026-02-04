@@ -120,3 +120,7 @@ export const getAIUsage = (days = 30) => api.get('/ai/usage', { params: { days }
 // Ручной запуск анализа
 export const triggerAIAnalysis = () => api.post('/ai/analyze')
 
+// Fleet Analytics
+export const getFleetTrends = (days = 30) => api.get('/ai/fleet-trends', { params: { days } })
+export const analyzeFleetTrends = (days = 30) => api.post('/ai/fleet-analysis', { days })
+

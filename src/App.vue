@@ -65,7 +65,8 @@ import {
   ChevronRight,
   LogOut,
   BarChart3,
-  FileText
+  FileText,
+  Sparkles
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -82,6 +83,7 @@ const allMenuItems = [
   { to: '/settings', label: 'Настройки', icon: Settings, requiresAdmin: true },
   { to: '/changes', label: 'Изменения', icon: History },
   { to: '/history', label: 'История', icon: CalendarClock, requiresAdmin: true },
+  { to: '/ai-analytics', label: 'AI Аналитика', icon: Sparkles },
 ]
 
 // Фильтруем меню по роли
