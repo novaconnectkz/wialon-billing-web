@@ -15,18 +15,10 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Переходим в директорию проекта
             cd /root/wialon-billing-web
-
-            # Принудительно обновляем код до состояния в GitHub
             git fetch origin
             git reset --hard origin/main
-
-            # Переходим в корень для запуска docker-compose
             cd /root
-
-            # Пересобираем только сервис web
-            docker-compose up -d --build web
-
-            # Очищаем старые образы
+            # Блокировка предотвращает одновременный запуск с API деплоем
+            flock -x /tmp/docker-compose.lock -c "docker-compose up -d --build --remove-orphans web"
             docker image prune -f
