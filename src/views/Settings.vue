@@ -421,7 +421,7 @@
     <Card v-if="activeTab === 'ai'" class="settings-card">
       <template #title>
         <div class="card-header">
-          <span>Gemini AI</span>
+          <span>DeepSeek AI</span>
           <Button 
             label="Сохранить"
             @click="saveAISettings"
@@ -433,25 +433,42 @@
         <div class="ai-settings-form">
           <div class="field-grid">
             <div class="field">
-              <label>API ключ Google</label>
-              <Password 
-                v-model="aiForm.api_key" 
-                class="w-full" 
-                toggleMask 
-                :feedback="false"
-                placeholder="Введите API ключ Gemini"
-              />
-              <small class="text-muted">Получите ключ в <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></small>
+              <label>API ключ DeepSeek</label>
+              <form autocomplete="off" @submit.prevent>
+                <Password 
+                  v-model="aiForm.api_key" 
+                  class="w-full" 
+                  toggleMask 
+                  :feedback="false"
+                  placeholder="Введите API ключ DeepSeek"
+                  autocomplete="new-password"
+                />
+              </form>
+              <small class="text-muted">Получите ключ в <a href="https://platform.deepseek.com" target="_blank">DeepSeek Platform</a></small>
             </div>
             <div class="field">
-              <label>Модель</label>
+              <label>Модель для анализа (R1)</label>
               <Dropdown 
-                v-model="aiForm.model"
-                :options="aiModels"
+                v-model="aiForm.analysis_model"
+                :options="aiAnalysisModels"
                 optionLabel="label"
                 optionValue="value"
                 class="w-full"
               />
+            </div>
+            <div class="field">
+              <label>Модель для поддержки (V3)</label>
+              <Dropdown 
+                v-model="aiForm.support_model"
+                :options="aiSupportModels"
+                optionLabel="label"
+                optionValue="value"
+                class="w-full"
+              />
+            </div>
+            <div class="field">
+              <label>Лимит токенов</label>
+              <InputNumber v-model="aiForm.max_tokens" :min="500" :max="8000" />
             </div>
             <div class="field">
               <label>Лимит запросов (в час)</label>
@@ -832,22 +849,26 @@ const billingCurrencies = [
   { label: 'KZT (Тенге)', value: 'KZT' }
 ]
 
-// AI Аналитика
+// AI Аналитика (DeepSeek)
 const savingAI = ref(false)
 const analyzingAI = ref(false)
 const aiUsage = ref(null)
 const aiForm = ref({
   enabled: false,
   api_key: '',
-  model: 'gemini-1.5-flash',
+  analysis_model: 'deepseek-reasoner',
+  support_model: 'deepseek-chat',
+  max_tokens: 2500,
   rate_limit_per_hour: 1,
   cache_ttl_hours: 24,
   privacy_mode: false
 })
 const hasAIKey = computed(() => aiForm.value.api_key?.length > 0 || aiForm.value.has_api_key)
-const aiModels = [
-  { label: 'Gemini 1.5 Flash (быстрый)', value: 'gemini-1.5-flash' },
-  { label: 'Gemini 1.5 Pro (точный)', value: 'gemini-1.5-pro' }
+const aiAnalysisModels = [
+  { label: 'DeepSeek Reasoner R1 (глубокий анализ)', value: 'deepseek-reasoner' }
+]
+const aiSupportModels = [
+  { label: 'DeepSeek Chat V3 (быстрые ответы)', value: 'deepseek-chat' }
 ]
 
 // Wialon хосты
