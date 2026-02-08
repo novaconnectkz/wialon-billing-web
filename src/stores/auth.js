@@ -9,8 +9,10 @@ export const useAuthStore = defineStore('auth', () => {
     const isAuthenticated = computed(() => !!token.value)
     const isAdmin = computed(() => user.value?.is_admin || user.value?.role === 'admin' || (!user.value?.role && user.value?.is_admin !== false))
     const isDealer = computed(() => user.value?.role === 'dealer')
+    const isPartner = computed(() => user.value?.role === 'partner')
     const role = computed(() => user.value?.role || 'admin')
     const dealerAccountId = computed(() => user.value?.dealer_account_id)
+    const partnerAccountId = computed(() => user.value?.partner_account_id)
     const userEmail = computed(() => user.value?.email || null)
 
     // Шаг 1: Запрос OTP кода
@@ -55,18 +57,34 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.removeItem('user')
     }
 
+    // Вход через Wialon OAuth токен
+    async function wialonLogin(accessToken) {
+        const response = await api.post('/auth/wialon-login', { access_token: accessToken })
+
+        token.value = response.data.token
+        user.value = response.data.user
+
+        localStorage.setItem('token', token.value)
+        localStorage.setItem('user', JSON.stringify(user.value))
+
+        return response.data
+    }
+
     return {
         token,
         user,
         isAuthenticated,
         isAdmin,
         isDealer,
+        isPartner,
         role,
         dealerAccountId,
+        partnerAccountId,
         userEmail,
         requestCode,
         verifyCode,
         fetchCurrentUser,
+        wialonLogin,
         logout
     }
 })

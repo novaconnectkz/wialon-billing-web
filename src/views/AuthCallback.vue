@@ -23,7 +23,7 @@ const authStore = useAuthStore()
 const status = ref('Авторизация...')
 const debugInfo = ref('')
 
-onMounted(() => {
+onMounted(async () => {
   // Wialon возвращает токен в разных форматах:
   // 1. В URL hash: #access_token=TOKEN&user_name=...
   // 2. Просто токен в hash: #TOKEN
@@ -79,15 +79,29 @@ onMounted(() => {
   }, null, 2)
   
   if (accessToken) {
-    status.value = 'Токен получен, переход...'
+    status.value = 'Токен получен, авторизация...'
     
-    // Сохраняем токен
-    authStore.setToken(accessToken, userName)
-    
-    // Небольшая задержка для отображения статуса
-    setTimeout(() => {
-      router.replace('/dashboard')
-    }, 500)
+    try {
+      // Отправляем токен на бэкенд для авторизации
+      const result = await authStore.wialonLogin(accessToken)
+      status.value = 'Авторизация успешна, переход...'
+      
+      // Перенаправляем в зависимости от роли
+      setTimeout(() => {
+        if (result.user?.role === 'partner') {
+          router.replace('/partner')
+        } else {
+          router.replace('/dashboard')
+        }
+      }, 500)
+    } catch (err) {
+      status.value = 'Ошибка авторизации: ' + (err.response?.data?.error || err.message)
+      debugInfo.value = JSON.stringify(err.response?.data || err.message, null, 2)
+      
+      setTimeout(() => {
+        router.replace('/login?error=' + encodeURIComponent(status.value))
+      }, 3000)
+    }
   } else {
     status.value = 'Ошибка получения токена'
     

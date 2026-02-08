@@ -126,8 +126,13 @@ const verifyCode = async () => {
   error.value = ''
   
   try {
-    await authStore.verifyCode(email.value, code.value)
-    router.push('/dashboard')
+    const result = await authStore.verifyCode(email.value, code.value)
+    // Перенаправляем в зависимости от роли
+    if (result.user?.role === 'partner') {
+      router.push('/partner')
+    } else {
+      router.push('/dashboard')
+    }
   } catch (err) {
     error.value = err.message || 'Неверный код'
   } finally {

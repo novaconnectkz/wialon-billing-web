@@ -135,3 +135,11 @@ export const triggerAIAnalysis = () => api.post('/ai/analyze')
 export const getFleetTrends = (days = 30) => api.get('/ai/fleet-trends', { params: { days } })
 export const analyzeFleetTrends = (days = 30) => api.post('/ai/fleet-analysis', { days })
 
+// === Partner Portal ===
+export const wialonLogin = (accessToken) => api.post('/auth/wialon-login', { access_token: accessToken })
+export const getPartnerAccount = () => api.get('/partner/account')
+export const getPartnerInvoices = () => api.get('/partner/invoices')
+export const getPartnerInvoicePDF = (id) => api.get(`/partner/invoices/${id}/pdf`, { responseType: 'blob' })
+export const getPartnerCharges = (year, month) => api.get('/partner/charges', { params: { year, month } })
+export const getPartnerBalance = () => api.get('/partner/balance')
+export const getPartnerSnapshots = (year, month) => api.get('/partner/snapshots', { params: { year, month } })

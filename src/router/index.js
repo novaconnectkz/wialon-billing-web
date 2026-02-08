@@ -53,6 +53,18 @@ const routes = [
         name: 'AiAnalytics',
         component: () => import('@/views/AiAnalytics.vue'),
         meta: { requiresAuth: true }
+    },
+    {
+        path: '/partner',
+        name: 'PartnerDashboard',
+        component: () => import('@/views/PartnerDashboard.vue'),
+        meta: { requiresAuth: true, requiresPartner: true }
+    },
+    {
+        path: '/partner/invoices',
+        name: 'PartnerInvoices',
+        component: () => import('@/views/PartnerInvoices.vue'),
+        meta: { requiresAuth: true, requiresPartner: true }
     }
 ]
 
@@ -69,11 +81,22 @@ router.beforeEach((to, from, next) => {
         // Не авторизован — на логин
         next('/login')
     } else if (to.meta.requiresAdmin && !authStore.isAdmin) {
-        // Дилер пытается зайти на admin-страницу — на dashboard
+        // Не-админ пытается зайти на admin-страницу
+        if (authStore.isPartner) {
+            next('/partner')
+        } else {
+            next('/dashboard')
+        }
+    } else if (to.meta.requiresPartner && !authStore.isPartner) {
+        // Не-партнёр пытается зайти на partner-страницу
         next('/dashboard')
     } else if (to.path === '/login' && authStore.isAuthenticated) {
-        // Уже авторизован — на dashboard
-        next('/dashboard')
+        // Уже авторизован — на соответствующую страницу
+        if (authStore.isPartner) {
+            next('/partner')
+        } else {
+            next('/dashboard')
+        }
     } else {
         next()
     }

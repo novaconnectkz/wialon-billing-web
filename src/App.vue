@@ -75,8 +75,9 @@ const authStore = useAuthStore()
 const sidebarCollapsed = ref(false)
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => authStore.isAdmin)
+const isPartner = computed(() => authStore.isPartner)
 
-// Все пункты меню с флагом requiresAdmin
+// Все пункты меню с флагами ролей
 const allMenuItems = [
   { to: '/dashboard', label: 'Данные', icon: BarChart3 },
   { to: '/invoices', label: 'Счета', icon: FileText, requiresAdmin: true },
@@ -84,11 +85,19 @@ const allMenuItems = [
   { to: '/changes', label: 'Изменения', icon: History },
   { to: '/history', label: 'История', icon: CalendarClock, requiresAdmin: true },
   { to: '/ai-analytics', label: 'AI Аналитика', icon: Sparkles },
+  { to: '/partner', label: 'Мой аккаунт', icon: LayoutDashboard, requiresPartner: true },
+  { to: '/partner/invoices', label: 'Финансы', icon: FileText, requiresPartner: true },
 ]
 
 // Фильтруем меню по роли
 const menuItems = computed(() => {
+  if (isPartner.value) {
+    // Партнёр видит только партнёрские пункты
+    return allMenuItems.filter(item => item.requiresPartner)
+  }
+  // Остальные — по flags requiresAdmin
   return allMenuItems.filter(item => !item.requiresAdmin || isAdmin.value)
+    .filter(item => !item.requiresPartner)
 })
 
 const logout = () => {
