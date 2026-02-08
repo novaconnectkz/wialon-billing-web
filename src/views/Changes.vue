@@ -75,15 +75,7 @@
           size="small"
           @click="resetFilters"
         />
-        <Button 
-          type="button" 
-          label="Очистить всё" 
-          icon="pi pi-trash" 
-          severity="danger" 
-          outlined
-          size="small"
-          @click="openClearDialog"
-        />
+
       </div>
     </div>
     
@@ -138,40 +130,13 @@
       </template>
     </Card>
 
-    <!-- Диалог очистки всех снимков -->
-    <Dialog v-model:visible="clearDialog" header="Очистить все снимки" :style="{ width: '480px' }" modal>
-      <div class="clear-dialog-content">
-        <div class="warning-alert">
-          <i class="pi pi-exclamation-triangle warning-icon"></i>
-          <span>Это действие удалит <strong>ВСЕ</strong> снимки и изменения. Это необратимо!</span>
-        </div>
-        <div class="confirm-code-section">
-          <label for="confirmCode">Введите код подтверждения:</label>
-          <InputText 
-            id="confirmCode"
-            v-model="confirmCode" 
-            placeholder="Код подтверждения"
-            class="confirm-input"
-          />
-        </div>
-      </div>
-      <template #footer>
-        <Button label="Отмена" severity="secondary" text @click="clearDialog = false" />
-        <Button 
-          label="Удалить всё" 
-          severity="danger" 
-          icon="pi pi-trash"
-          :loading="clearing"
-          @click="clearAllSnapshotsClick"
-        />
-      </template>
-    </Dialog>
+
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { getSnapshots, clearAllSnapshots } from '@/services/api'
+import { ref, computed, onMounted, watch } from 'vue'
+import { getSnapshots } from '@/services/api'
 import { Plus, Minus, Activity, Calendar as CalendarIcon, FilterX } from 'lucide-vue-next'
 import InputSwitch from 'primevue/inputswitch'
 import InputText from 'primevue/inputtext'
@@ -180,9 +145,7 @@ import { useToast } from 'primevue/usetoast'
 const toast = useToast()
 const snapshots = ref([])
 const loading = ref(false)
-const clearing = ref(false)
-const clearDialog = ref(false)
-const confirmCode = ref('')
+
 const onlyWithChanges = ref(true)
 
 // Инициализация периода текущим месяцем
@@ -203,6 +166,7 @@ const totalDeleted = computed(() =>
 // Фильтрация
 const filteredSnapshots = computed(() => {
   let result = snapshots.value
+  if (!Array.isArray(result)) return []
 
   // Только с изменениями
   if (onlyWithChanges.value) {
@@ -233,8 +197,17 @@ const resetFilters = () => {
 const loadSnapshots = async () => {
   loading.value = true
   try {
-    const { data } = await getSnapshots()
-    snapshots.value = data || []
+    const params = {}
+    if (dateRange.value && dateRange.value[0]) {
+      const d = dateRange.value[0]
+      params.from = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    }
+    if (dateRange.value && dateRange.value[1]) {
+      const d = dateRange.value[1]
+      params.to = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    }
+    const { data } = await getSnapshots(params)
+    snapshots.value = data?.data || data || []
   } catch (error) {
     console.error('Ошибка загрузки снимков:', error)
   } finally {
@@ -242,36 +215,18 @@ const loadSnapshots = async () => {
   }
 }
 
+// Перезагрузка при смене периода
+watch(dateRange, (val) => {
+  if (val && val[0] && val[1]) {
+    loadSnapshots()
+  }
+})
+
 const formatDate = (date) => {
   if (!date) return '—'
   return new Date(date).toLocaleDateString('ru-RU')
 }
 
-const openClearDialog = () => {
-  confirmCode.value = ''
-  clearDialog.value = true
-}
-
-const clearAllSnapshotsClick = async () => {
-  if (!confirmCode.value) {
-    toast.add({ severity: 'warn', summary: 'Внимание', detail: 'Введите код подтверждения', life: 3000 })
-    return
-  }
-
-  clearing.value = true
-  try {
-    const { data } = await clearAllSnapshots(confirmCode.value)
-    toast.add({ severity: 'success', summary: 'Готово', detail: `Удалено ${data.count} снимков`, life: 3000 })
-    clearDialog.value = false
-    confirmCode.value = ''
-    await loadSnapshots()
-  } catch (error) {
-    const message = error.response?.data?.error || 'Ошибка удаления'
-    toast.add({ severity: 'error', summary: 'Ошибка', detail: message, life: 3000 })
-  } finally {
-    clearing.value = false
-  }
-}
 
 onMounted(() => {
   loadSnapshots()

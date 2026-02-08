@@ -63,22 +63,6 @@
           class="month-select"
         />
       </div>
-      <div class="action-right">
-        <Button 
-          label="Удалить все" 
-          icon="pi pi-trash" 
-          severity="danger"
-          outlined
-          @click="openClearDialog"
-          :disabled="invoices.length === 0"
-        />
-        <Button 
-          label="Сгенерировать счета" 
-          icon="pi pi-plus" 
-          :loading="generating"
-          @click="generateInvoicesClick"
-        />
-      </div>
     </div>
     
     <!-- Таблица -->
@@ -110,9 +94,15 @@
               <span class="amount-cell">{{ formatCurrency(data.total_amount) }} {{ data.currency }}</span>
             </template>
           </Column>
-          <Column field="status" header="Статус" style="width: 130px">
+          <Column field="status" header="Статус" style="width: 80px; text-align: center">
             <template #body="{ data }">
-              <Tag :value="getStatusLabel(data.status)" :severity="getStatusSeverity(data.status)" />
+              <div 
+                v-tooltip.top="getStatusLabel(data.status)"
+                class="status-icon-wrapper"
+                :class="getStatusClass(data.status)"
+              >
+                <component :is="getStatusIcon(data.status)" :size="20" />
+              </div>
             </template>
           </Column>
           <Column field="created_at" header="Создан" style="width: 100px">
@@ -199,19 +189,19 @@
           </Column>
           <Column field="unit_price" header="Цена" style="width: 100px">
             <template #body="{ data }">
-              <span>{{ data.unit_price }} {{ data.currency }}</span>
+              <span>{{ formatCurrency(data.unit_price) }} {{ data.currency }}</span>
             </template>
           </Column>
           <Column field="total_price" header="Итого" style="width: 100px">
             <template #body="{ data }">
-              <span class="total-price">{{ data.total_price.toFixed(2) }} {{ data.currency }}</span>
+              <span class="total-price">{{ formatCurrency(data.total_price) }} {{ data.currency }}</span>
             </template>
           </Column>
         </DataTable>
 
         <div class="invoice-total">
           <span>Итого:</span>
-          <strong>{{ selectedInvoice.total_amount.toFixed(2) }} {{ selectedInvoice.currency }}</strong>
+          <strong>{{ formatCurrency(selectedInvoice.total_amount) }} {{ selectedInvoice.currency }}</strong>
         </div>
       </div>
     </Dialog>
@@ -244,13 +234,111 @@
         />
       </template>
     </Dialog>
+
+    <!-- Диалог генерации счетов за выбранный месяц -->
+    <Dialog 
+      v-model:visible="generateDialog" 
+      header="Генерация счетов" 
+      :style="{ width: '440px' }" 
+      modal
+    >
+      <div class="generate-form">
+        <div class="generate-info">
+          <i class="pi pi-info-circle info-icon"></i>
+          <span>Выберите период для генерации счетов. Доступны только <strong>завершённые</strong> месяцы.</span>
+        </div>
+        <div class="generate-selectors">
+          <div class="form-field">
+            <label>Год</label>
+            <Dropdown
+              v-model="genYear"
+              :options="years"
+              placeholder="Год"
+              class="gen-select"
+              @change="onGenYearChange"
+            />
+          </div>
+          <div class="form-field">
+            <label>Месяц</label>
+            <Dropdown
+              v-model="genMonth"
+              :options="availableMonths"
+              optionLabel="name"
+              optionValue="value"
+              placeholder="Месяц"
+              class="gen-select"
+              :disabled="availableMonths.length === 0"
+            />
+          </div>
+        </div>
+        <div class="form-field" style="margin-top: 0.75rem">
+          <label>Аккаунт <span style="color: var(--text-color-secondary); font-weight: 400">(необязательно)</span></label>
+          <Dropdown
+            v-model="genAccountId"
+            :options="billingAccounts"
+            optionLabel="name"
+            optionValue="id"
+            placeholder="Все аккаунты"
+            class="gen-select"
+            showClear
+            filter
+            filterPlaceholder="Поиск..."
+          />
+        </div>
+        <div v-if="genYear && genMonth" class="selected-period">
+          <CalendarDays :size="18" class="period-icon" />
+          <span>Период: <strong>{{ getMonthName(genMonth) }} {{ genYear }}</strong></span>
+          <span v-if="genAccountId" style="margin-left: 0.5rem; color: var(--text-color-secondary)"> · {{ billingAccounts.find(a => a.id === genAccountId)?.name }}</span>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Отмена" severity="secondary" text @click="generateDialog = false" />
+        <Button 
+          label="Сгенерировать" 
+          icon="pi pi-file-export" 
+          :loading="generating"
+          :disabled="!genYear || !genMonth"
+          @click="generateFromDialog"
+        />
+      </template>
+    </Dialog>
+
+    <!-- FAB (Floating Action Button) -->
+    <div class="fab-container">
+      <transition name="fab-actions">
+        <div v-if="fabOpen" class="fab-actions">
+          <div class="fab-action" @click="fabOpen = false; openClearDialog()">
+            <span class="fab-action-label">Удалить все</span>
+            <button class="fab-action-btn fab-danger">
+              <Trash2 :size="20" />
+            </button>
+          </div>
+          <div class="fab-action" @click="fabOpen = false; openGenerateDialog()">
+            <span class="fab-action-label">Сгенерировать счета</span>
+            <button class="fab-action-btn fab-success">
+              <FileText :size="20" />
+            </button>
+          </div>
+        </div>
+      </transition>
+      <button 
+        class="fab-main" 
+        :class="{ 'fab-active': fabOpen }"
+        @click="fabOpen = !fabOpen"
+      >
+        <Plus :size="24" class="fab-icon" />
+      </button>
+      <transition name="fab-overlay">
+        <div v-if="fabOpen" class="fab-overlay" @click="fabOpen = false" />
+      </transition>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getInvoices, generateInvoices, updateInvoiceStatus, clearAllInvoices } from '@/services/api'
-import { FileText, Clock, CheckCircle, DollarSign } from 'lucide-vue-next'
+import { getInvoices, generateInvoices, updateInvoiceStatus, clearAllInvoices, getSelectedAccounts } from '@/services/api'
+import { FileText, Clock, CheckCircle, DollarSign, Plus, Trash2, CalendarDays, Send, AlertCircle } from 'lucide-vue-next'
 import { useToast } from 'primevue/usetoast'
 import Tag from 'primevue/tag'
 import InputText from 'primevue/inputtext'
@@ -265,6 +353,16 @@ const clearDialog = ref(false)
 const selectedInvoice = ref(null)
 const confirmCode = ref('')
 
+// FAB
+const fabOpen = ref(false)
+
+// Диалог генерации
+const generateDialog = ref(false)
+const genYear = ref(null)
+const genMonth = ref(null)
+const genAccountId = ref(null)
+const billingAccounts = ref([])
+
 // Фильтры
 const now = new Date()
 const selectedYear = ref(now.getFullYear())
@@ -277,6 +375,21 @@ const years = computed(() => {
   }
   return result
 })
+
+const monthNames = [
+  { name: 'Январь', value: 1 },
+  { name: 'Февраль', value: 2 },
+  { name: 'Март', value: 3 },
+  { name: 'Апрель', value: 4 },
+  { name: 'Май', value: 5 },
+  { name: 'Июнь', value: 6 },
+  { name: 'Июль', value: 7 },
+  { name: 'Август', value: 8 },
+  { name: 'Сентябрь', value: 9 },
+  { name: 'Октябрь', value: 10 },
+  { name: 'Ноябрь', value: 11 },
+  { name: 'Декабрь', value: 12 },
+]
 
 const months = [
   { name: 'Январь', value: 1 },
@@ -292,6 +405,80 @@ const months = [
   { name: 'Ноябрь', value: 11 },
   { name: 'Декабрь', value: 12 },
 ]
+
+// Доступные месяцы для генерации (только завершённые)
+const availableMonths = computed(() => {
+  if (!genYear.value) return []
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
+  
+  return monthNames.filter(m => {
+    // Если выбранный год < текущего — все месяцы доступны
+    if (genYear.value < currentYear) return true
+    // Если выбранный год = текущему — только прошедшие месяцы
+    if (genYear.value === currentYear) return m.value < currentMonth
+    // Если будущий год — ничего не доступно
+    return false
+  })
+})
+
+const getMonthName = (value) => {
+  const m = monthNames.find(m => m.value === value)
+  return m ? m.name : ''
+}
+
+const onGenYearChange = () => {
+  // Сбрасываем месяц если он стал недоступен
+  if (genMonth.value && !availableMonths.value.find(m => m.value === genMonth.value)) {
+    genMonth.value = null
+  }
+}
+
+const openGenerateDialog = async () => {
+  // По умолчанию выбираем предыдущий месяц
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  genYear.value = prev.getFullYear()
+  genMonth.value = prev.getMonth() + 1
+  genAccountId.value = null
+  generateDialog.value = true
+
+  // Загружаем список аккаунтов
+  try {
+    const { data } = await getSelectedAccounts()
+    billingAccounts.value = data || []
+  } catch (e) {
+    billingAccounts.value = []
+  }
+}
+
+const generateFromDialog = async () => {
+  if (!genYear.value || !genMonth.value) return
+  
+  generating.value = true
+  try {
+    const { data } = await generateInvoices(genYear.value, genMonth.value, genAccountId.value)
+    toast.add({ 
+      severity: 'success', 
+      summary: 'Готово', 
+      detail: `Создано ${data.count} счетов за ${getMonthName(genMonth.value)} ${genYear.value}`, 
+      life: 3000 
+    })
+    // Переключаем фильтры на сгенерированный период
+    selectedYear.value = genYear.value
+    selectedMonth.value = genMonth.value
+    generateDialog.value = false
+    await loadInvoices()
+  } catch (error) {
+    toast.add({ 
+      severity: 'error', 
+      summary: 'Ошибка', 
+      detail: error.response?.data?.error || 'Ошибка генерации', 
+      life: 3000 
+    })
+  } finally {
+    generating.value = false
+  }
+}
 
 // Статистика
 const draftCount = computed(() => invoices.value.filter(i => i.status === 'draft').length)
@@ -383,6 +570,26 @@ const getStatusLabel = (status) => {
   return labels[status] || status
 }
 
+const getStatusIcon = (status) => {
+  const icons = {
+    draft: FileText,
+    sent: Send,
+    paid: CheckCircle,
+    overdue: AlertCircle
+  }
+  return icons[status] || FileText
+}
+
+const getStatusClass = (status) => {
+  const classes = {
+    draft: 'status-icon-draft',
+    sent: 'status-icon-sent',
+    paid: 'status-icon-paid',
+    overdue: 'status-icon-overdue'
+  }
+  return classes[status] || ''
+}
+
 const getStatusSeverity = (status) => {
   const severities = { draft: 'secondary', sent: 'warning', paid: 'success', overdue: 'danger' }
   return severities[status] || 'info'
@@ -396,7 +603,7 @@ const formatDate = (date) => {
 const formatPeriod = (date) => {
   if (!date) return '—'
   const d = new Date(date)
-  return d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
+  return d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).replace(' г.', '')
 }
 
 const formatCurrency = (value) => {
@@ -574,6 +781,7 @@ onMounted(() => {
 
 .period-cell {
   text-transform: capitalize;
+  white-space: nowrap;
 }
 
 .amount-cell {
@@ -642,6 +850,41 @@ onMounted(() => {
   padding-top: 1rem;
   border-top: 1px solid var(--surface-border);
   font-size: 1.25rem;
+}
+
+/* Иконки статусов */
+.status-icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.status-icon-wrapper:hover {
+  transform: scale(1.1);
+}
+
+.status-icon-draft {
+  color: var(--text-color-secondary);
+  background: var(--surface-ground);
+}
+
+.status-icon-sent {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.status-icon-paid {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.status-icon-overdue {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
 }
 
 /* Адаптивность */
@@ -718,5 +961,220 @@ onMounted(() => {
   display: flex;
   gap: 0.75rem;
   align-items: center;
+}
+
+/* === FAB === */
+.fab-container {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.fab-main {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  border: none;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1002;
+}
+
+.fab-main:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 28px rgba(59, 130, 246, 0.5);
+}
+
+.fab-main.fab-active {
+  background: linear-gradient(135deg, #64748b, #475569);
+  box-shadow: 0 4px 20px rgba(100, 116, 139, 0.4);
+}
+
+.fab-icon {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fab-active .fab-icon {
+  transform: rotate(45deg);
+}
+
+.fab-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  z-index: 1002;
+}
+
+.fab-action {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  animation: fabSlideUp 0.2s ease-out both;
+}
+
+.fab-action:nth-child(1) { animation-delay: 0.05s; }
+.fab-action:nth-child(2) { animation-delay: 0.1s; }
+
+@keyframes fabSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.fab-action-label {
+  background: var(--surface-card, #1e293b);
+  color: var(--text-color, #e2e8f0);
+  padding: 0.5rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  pointer-events: none;
+}
+
+.fab-action-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+}
+
+.fab-action-btn:hover {
+  transform: scale(1.1);
+}
+
+.fab-success {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.fab-danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.fab-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 1001;
+  backdrop-filter: blur(2px);
+}
+
+/* Анимации FAB */
+.fab-actions-enter-active {
+  transition: all 0.2s ease-out;
+}
+.fab-actions-leave-active {
+  transition: all 0.15s ease-in;
+}
+.fab-actions-enter-from,
+.fab-actions-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.fab-overlay-enter-active {
+  transition: opacity 0.2s ease;
+}
+.fab-overlay-leave-active {
+  transition: opacity 0.15s ease;
+}
+.fab-overlay-enter-from,
+.fab-overlay-leave-to {
+  opacity: 0;
+}
+
+/* === Диалог генерации === */
+.generate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.generate-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-left: 4px solid #3b82f6;
+  border-radius: 8px;
+  color: #93c5fd;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.generate-info .info-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #3b82f6;
+}
+
+.generate-selectors {
+  display: flex;
+  gap: 1rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.form-field label {
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--text-color-secondary);
+}
+
+.gen-select {
+  width: 100%;
+}
+
+.selected-period {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  border-radius: 10px;
+  color: #86efac;
+  font-size: 0.95rem;
+}
+
+.selected-period .period-icon {
+  color: #22c55e;
+  flex-shrink: 0;
 }
 </style>

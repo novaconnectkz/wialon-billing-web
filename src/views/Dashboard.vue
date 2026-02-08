@@ -66,7 +66,20 @@
     <Card class="data-card">
       <template #title>
         <div class="card-header">
-          <span>Данные за выбранный период</span>
+          <div class="card-header-left">
+            <span>Данные за выбранный период</span>
+            <Dropdown 
+              v-model="filterAccountId" 
+              :options="accountOptions" 
+              optionLabel="name" 
+              optionValue="id"
+              placeholder="Все аккаунты"
+              showClear
+              :filter="true"
+              filterPlaceholder="Поиск..."
+              class="account-filter-dropdown"
+            />
+          </div>
           <div class="period-selectors">
             <Button 
               text 
@@ -142,7 +155,7 @@
               {{ formatDate(data.snapshot_date) }}
             </template>
           </Column>
-          <Column header="" style="width: 80px">
+          <Column header="" style="width: 120px">
             <template #body="{ data }">
               <Button 
                 icon="pi pi-chart-bar" 
@@ -151,6 +164,14 @@
                 severity="info"
                 title="Статистика"
                 @click="showStats(data.account)"
+              />
+              <Button 
+                icon="pi pi-money-bill" 
+                text 
+                rounded
+                severity="success"
+                title="Детализация начислений"
+                @click="showCharges(data.account)"
               />
             </template>
           </Column>
@@ -198,12 +219,163 @@
         <p>Нет данных за выбранный период</p>
       </div>
     </Dialog>
+
+    <!-- Детализация начислений — Antigravity Design -->
+    <Dialog 
+      v-model:visible="chargesDialog" 
+      :modal="true"
+      :style="{ width: '90vw', maxWidth: '960px' }"
+      :showHeader="false"
+      :pt="{ content: { style: 'padding: 0' } }"
+    >
+      <!-- Кастомный Header -->
+      <div class="ag-header">
+        <div class="ag-header-left">
+          <div class="ag-title">{{ chargesAccount?.name || '' }}</div>
+          <div class="ag-period">{{ monthNames[selectedMonth - 1] }} {{ selectedYear }}</div>
+        </div>
+        <div class="ag-header-right">
+          <div class="ag-grand-total" v-if="chargesData?.monthly_totals?.cost_by_currency">
+            <span 
+              v-for="(amount, currency) in chargesData.monthly_totals.cost_by_currency" 
+              :key="currency"
+              class="ag-total-amount"
+            >{{ formatCurrency(amount, currency) }}</span>
+            <!-- Конвертированная сумма для завершённых месяцев -->
+            <template v-if="chargesData.conversion">
+              <span 
+                v-for="(amount, currency) in chargesData.conversion.converted_totals" 
+                :key="'conv-' + currency"
+                class="ag-total-converted"
+              >≈ {{ formatCurrency(amount, currency) }}</span>
+            </template>
+          </div>
+          <Button 
+            icon="pi pi-file-excel" 
+            label="Excel"
+            size="small"
+            outlined
+            severity="success" 
+            @click="downloadChargesExcel" 
+            :loading="excelLoading"
+            style="white-space: nowrap"
+          />
+          <Button 
+            icon="pi pi-times" 
+            text 
+            rounded 
+            severity="secondary"
+            @click="chargesDialog = false" 
+          />
+        </div>
+      </div>
+
+      <div v-if="chargesLoading" class="ag-loader">
+        <i class="pi pi-spin pi-spinner" style="font-size: 1.5rem; color: var(--primary-color);"></i>
+      </div>
+      <div v-else-if="chargesData" class="ag-body">
+
+        <!-- Модули: компактные карточки -->
+        <div class="ag-module-cards" v-if="chargesData.monthly_totals?.cost_details?.length">
+          <div 
+            v-for="detail in chargesData.monthly_totals.cost_details" 
+            :key="detail.module_id" 
+            class="ag-module-card"
+          >
+            <div class="ag-mc-top">
+              <span class="ag-mc-name">{{ shortenModuleName(detail.module_name) }}</span>
+              <span class="ag-mc-total">{{ formatCurrency(detail.total_cost, detail.currency) }}</span>
+            </div>
+            <div class="ag-mc-formula">
+              <template v-if="detail.pricing_type !== 'fixed'">
+                {{ detail.unit_price }} × {{ detail.avg_units }} ÷ {{ detail.days_in_month }}д = {{ detail.avg_daily_cost }}/день × {{ detail.days_count }}д
+              </template>
+              <template v-else>
+                Фиксированная — начислено 1-го числа
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Прогресс-бар периода -->
+        <div class="ag-progress" v-if="chargesData.period">
+          <span class="ag-progress-label">{{ chargesData.daily_breakdown?.length || 0 }} из {{ chargesData.period.days_in_month }} дней</span>
+          <div class="ag-progress-bar">
+            <div 
+              class="ag-progress-fill" 
+              :style="{ width: ((chargesData.daily_breakdown?.length || 0) / chargesData.period.days_in_month * 100) + '%' }"
+            ></div>
+          </div>
+        </div>
+
+        <!-- Таблица: чистая, без шума -->
+        <div class="ag-table-wrap">
+          <table class="ag-table">
+            <thead>
+              <tr>
+                <th class="ag-th-date">Дата</th>
+                <th class="ag-th-units">Объектов</th>
+                <th class="ag-th-module">Модуль</th>
+                <th class="ag-th-rate">Тариф</th>
+                <th class="ag-th-cost">Стоимость</th>
+                <th v-if="chargesData.conversion" class="ag-th-cost">{{ chargesData.conversion.billing_currency }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="(day, dayIdx) in chargesData.daily_breakdown" :key="day.date">
+                <tr 
+                  v-for="(charge, chargeIdx) in day.charges" 
+                  :key="charge.module_id"
+                  :class="{ 'ag-date-first': chargeIdx === 0 && dayIdx > 0 }"
+                >
+                  <td class="ag-td-date">
+                    <span v-if="chargeIdx === 0" class="ag-date-label">{{ formatDateShort(day.date) }}</span>
+                  </td>
+                  <td class="ag-td-units">
+                    <span v-if="chargeIdx === 0">{{ charge.total_units }}</span>
+                  </td>
+                  <td class="ag-td-module">
+                    <span class="ag-module-label">{{ shortenModuleName(charge.module_name) }}</span>
+                    <span v-if="charge.pricing_type === 'fixed'" class="ag-badge-fix">фикс</span>
+                  </td>
+                  <td class="ag-td-rate">{{ charge.unit_price }}</td>
+                  <td class="ag-td-cost">{{ formatCurrency(charge.daily_cost, charge.currency) }}</td>
+                  <td v-if="chargesData.conversion" class="ag-td-cost">
+                    <span v-if="chargeIdx === 0 && day.day_cost_local">{{ formatCurrency(day.day_cost_local, day.local_currency) }}</span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Курс и конвертация для завершённых месяцев -->
+        <div class="ag-conversion" v-if="chargesData.conversion">
+          <div class="ag-conversion-rate">
+            Курс EUR/{{ chargesData.conversion.billing_currency }} на {{ formatDate(chargesData.conversion.rate_date) }}: 
+            <strong>{{ chargesData.conversion.rate }}</strong>
+          </div>
+          <div class="ag-conversion-total">
+            <span 
+              v-for="(amount, currency) in chargesData.conversion.converted_totals" 
+              :key="currency"
+            >
+              Итого: <strong>{{ formatCurrency(amount, currency) }}</strong>
+            </span>
+          </div>
+        </div>
+
+      </div>
+      <div v-else class="ag-empty">
+        Нет данных за выбранный период
+      </div>
+    </Dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getDashboard, getAccountStats } from '@/services/api'
+import { getDashboard, getAccountStats, getAccountCharges, exportAccountChargesExcel } from '@/services/api'
 import { 
   Truck, 
   Euro, 
@@ -233,24 +405,40 @@ const monthNames = [
   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
 ]
 
-// Фильтруем снимки по выбранному диапазону дат
+// Фильтр по аккаунту
+const filterAccountId = ref(null)
+
+// Список аккаунтов из загруженных данных
+const accountOptions = computed(() => {
+  if (!dashboard.value.accounts) return []
+  return dashboard.value.accounts.map(a => ({ id: a.id, name: a.name })).sort((a, b) => a.name.localeCompare(b.name))
+})
+
+// Фильтруем снимки по выбранному диапазону дат и аккаунту
 const filteredSnapshots = computed(() => {
   if (!dashboard.value.snapshots) return []
-  if (!dateRange.value || dateRange.value.length < 2) return dashboard.value.snapshots
   
-  const [start, end] = dateRange.value
-  if (!start || !end) return dashboard.value.snapshots
+  let result = dashboard.value.snapshots
   
-  // Устанавливаем время для корректного сравнения
-  const startDate = new Date(start)
-  startDate.setHours(0, 0, 0, 0)
-  const endDate = new Date(end)
-  endDate.setHours(23, 59, 59, 999)
+  // Фильтр по диапазону дат
+  if (dateRange.value && dateRange.value.length === 2 && dateRange.value[0] && dateRange.value[1]) {
+    const startDate = new Date(dateRange.value[0])
+    startDate.setHours(0, 0, 0, 0)
+    const endDate = new Date(dateRange.value[1])
+    endDate.setHours(23, 59, 59, 999)
+    
+    result = result.filter(s => {
+      const snapshotDate = new Date(s.snapshot_date)
+      return snapshotDate >= startDate && snapshotDate <= endDate
+    })
+  }
   
-  return dashboard.value.snapshots.filter(s => {
-    const snapshotDate = new Date(s.snapshot_date)
-    return snapshotDate >= startDate && snapshotDate <= endDate
-  })
+  // Фильтр по аккаунту
+  if (filterAccountId.value) {
+    result = result.filter(s => s.account_id === filterAccountId.value)
+  }
+  
+  return result
 })
 
 // Подсчёт деактивированных объектов за период (последний снимок каждого аккаунта)
@@ -335,11 +523,63 @@ const showStats = async (account) => {
   }
 }
 
+// Детализация начислений
+const chargesDialog = ref(false)
+const chargesLoading = ref(false)
+const chargesAccount = ref(null)
+const chargesData = ref(null)
+const excelLoading = ref(false)
+
+
+
+
+const showCharges = async (account) => {
+  chargesAccount.value = account
+  chargesDialog.value = true
+  chargesLoading.value = true
+  chargesData.value = null
+  
+  try {
+    const { data } = await getAccountCharges(account.id, selectedYear.value, selectedMonth.value)
+    chargesData.value = data
+  } catch (error) {
+    console.error('Ошибка загрузки детализации:', error)
+  } finally {
+    chargesLoading.value = false
+  }
+}
+
+const downloadChargesExcel = async () => {
+  if (!chargesAccount.value) return
+  excelLoading.value = true
+  try {
+    const { data } = await exportAccountChargesExcel(
+      chargesAccount.value.id, 
+      selectedYear.value, 
+      selectedMonth.value
+    )
+    // Скачиваем blob как файл
+    const url = window.URL.createObjectURL(new Blob([data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `charges_${chargesAccount.value.name}_${selectedYear.value}-${String(selectedMonth.value).padStart(2, '0')}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('Ошибка экспорта:', error)
+  } finally {
+    excelLoading.value = false
+  }
+}
+
 const formatCurrency = (value, currency) => {
-  if (!value) return '—'
+  if (value === null || value === undefined) return '—'
   const symbols = { EUR: '€', RUB: '₽', KZT: '₸' }
   const symbol = symbols[currency] || currency
-  return `${value.toLocaleString('ru-RU')} ${symbol}`
+  const num = typeof value === 'number' ? value : parseFloat(value)
+  return `${num.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`
 }
 
 const hasCosts = computed(() => {
@@ -351,6 +591,24 @@ const formatDate = (date) => {
   if (!date) return '—'
   return new Date(date).toLocaleDateString('ru-RU')
 }
+
+// Antigravity: короткий формат даты «01 фев»
+const shortMonths = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
+const formatDateShort = (dateStr) => {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
+  return `${String(d.getDate()).padStart(2, '0')} ${shortMonths[d.getMonth()]}`
+}
+
+// Antigravity: убирает длинные префиксы из названий модулей
+const shortenModuleName = (name) => {
+  if (!name) return ''
+  return name
+    .replace(/^Пакет\s+"/i, '"')
+    .replace(/\s+\/месяц$/i, '')
+    .replace(/\s+\/мес$/i, '')
+}
+
 
 onMounted(() => {
   loadDashboard()
@@ -461,6 +719,17 @@ onMounted(() => {
   gap: 1rem;
 }
 
+.card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.account-filter-dropdown {
+  min-width: 200px;
+  font-size: 0.9rem;
+}
+
 .period-selectors {
   display: flex;
   align-items: center;
@@ -554,5 +823,265 @@ onMounted(() => {
 .units-deactivated {
   color: #eab308;
   font-size: 0.875rem;
+}
+
+/* ═══════════════════════════════════════════════════
+   Antigravity Design System — Детализация начислений
+   ═══════════════════════════════════════════════════ */
+
+/* Header */
+.ag-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--surface-border);
+  gap: 1rem;
+}
+
+.ag-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-color);
+  line-height: 1.3;
+}
+
+.ag-period {
+  font-size: 0.8rem;
+  color: var(--text-color-secondary);
+  margin-top: 2px;
+}
+
+.ag-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.ag-grand-total {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.ag-total-amount {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-color);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.ag-total-converted {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-color-secondary);
+  align-self: flex-end;
+  padding-bottom: 0.1rem;
+}
+
+/* Блок конвертации под таблицей */
+.ag-conversion {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  background: rgba(0, 150, 200, 0.06);
+  border-top: 1px solid var(--surface-border);
+  font-size: 0.9rem;
+  color: var(--text-color-secondary);
+}
+
+.ag-conversion-rate {
+  font-size: 0.85rem;
+}
+
+.ag-conversion-total {
+  font-size: 1.1rem;
+  color: var(--text-color);
+}
+
+/* Loader */
+.ag-loader {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0;
+}
+
+/* Body */
+.ag-body {
+  padding: 1rem 1.5rem 1.5rem;
+}
+
+/* Module cards */
+.ag-module-cards {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.ag-module-card {
+  flex: 1;
+  min-width: 220px;
+  background: var(--surface-ground);
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  padding: 0.875rem 1rem;
+}
+
+.ag-mc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.ag-mc-name {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-color);
+  line-height: 1.3;
+}
+
+.ag-mc-total {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-color);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ag-mc-formula {
+  font-size: 0.72rem;
+  color: var(--text-color-secondary);
+  margin-top: 0.35rem;
+  line-height: 1.4;
+  opacity: 0.7;
+}
+
+/* Progress */
+.ag-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.ag-progress-label {
+  font-size: 0.75rem;
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+}
+
+.ag-progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--surface-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.ag-progress-fill {
+  height: 100%;
+  background: var(--primary-color);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* Table */
+.ag-table-wrap {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+}
+
+.ag-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ag-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.ag-table th {
+  background: var(--surface-ground);
+  color: var(--text-color-secondary);
+  font-weight: 500;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--surface-border);
+  text-align: left;
+}
+
+.ag-th-units,
+.ag-th-rate,
+.ag-th-cost {
+  text-align: right;
+}
+
+.ag-table td {
+  padding: 0.5rem 0.75rem;
+  color: var(--text-color);
+  vertical-align: top;
+  border-bottom: none;
+}
+
+.ag-td-units,
+.ag-td-rate,
+.ag-td-cost {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ag-td-cost {
+  font-weight: 600;
+}
+
+.ag-td-rate {
+  color: var(--text-color-secondary);
+}
+
+/* Date grouping */
+.ag-date-first td {
+  border-top: 1px solid var(--surface-border);
+  padding-top: 0.65rem;
+}
+
+.ag-date-label {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+/* Module label & badge */
+.ag-module-label {
+  color: var(--text-color-secondary);
+}
+
+.ag-badge-fix {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 500;
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Empty */
+.ag-empty {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-color-secondary);
 }
 </style>

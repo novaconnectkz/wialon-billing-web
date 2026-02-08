@@ -63,7 +63,7 @@ export const getExchangeRates = () => api.get('/exchange-rates')
 export const getDashboard = (year, month) => api.get('/dashboard', { params: { year, month } })
 
 // Snapshots
-export const getSnapshots = () => api.get('/snapshots')
+export const getSnapshots = (params = {}) => api.get('/snapshots', { params: { page_size: 1000, ...params } })
 export const createSnapshotsForDate = (date) => api.post('/snapshots/date', { date })
 export const createSnapshotsForRange = (from, to) => api.post('/snapshots/range', { from, to })
 export const createSnapshot = (accountId) => api.post('/snapshots', { account_id: accountId })
@@ -79,6 +79,12 @@ export const syncAccounts = () => api.post('/accounts/sync')
 export const getAccountStats = (id, year, month) => api.get(`/accounts/${id}/stats`, { params: { year, month } })
 export const getAccountHistory = (id, days = 30) => api.get(`/accounts/${id}/history`, { params: { days } })
 
+// Детализация начислений
+export const getAccountCharges = (id, year, month) =>
+    api.get(`/accounts/${id}/charges`, { params: { year, month } })
+export const exportAccountChargesExcel = (id, year, month) =>
+    api.get(`/accounts/${id}/charges/excel`, { params: { year, month }, responseType: 'blob' })
+
 // Wialon Connections
 export const getConnections = () => api.get('/connections')
 export const createConnection = (data) => api.post('/connections', data)
@@ -89,7 +95,11 @@ export const testConnection = (id) => api.post(`/connections/${id}/test`)
 // Invoices (Счета)
 export const getInvoices = () => api.get('/invoices')
 export const getInvoice = (id) => api.get(`/invoices/${id}`)
-export const generateInvoices = (year, month) => api.post('/invoices/generate', { year, month })
+export const generateInvoices = (year, month, accountId = null) => {
+    const payload = { year, month }
+    if (accountId) payload.account_id = accountId
+    return api.post('/invoices/generate', payload)
+}
 export const updateInvoiceStatus = (id, status) => api.put(`/invoices/${id}/status`, { status })
 export const clearAllInvoices = (confirmCode) => api.delete('/invoices/clear', { data: { confirm_code: confirmCode } })
 

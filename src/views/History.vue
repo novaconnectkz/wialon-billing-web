@@ -3,6 +3,53 @@
     <div class="page-header">
       <h1 class="page-title">История снимков</h1>
     </div>
+
+    <!-- Фильтры -->
+    <div class="period-filter">
+      <div class="filter-group">
+        <label>Аккаунт:</label>
+        <Dropdown 
+          v-model="filterAccountId" 
+          :options="accountOptions" 
+          optionLabel="name" 
+          optionValue="id"
+          placeholder="Все аккаунты"
+          showClear
+          :filter="true"
+          filterPlaceholder="Поиск..."
+          class="filter-dropdown"
+          @change="onFilterChange"
+        />
+      </div>
+      <div class="filter-group">
+        <label>С:</label>
+        <Calendar 
+          v-model="filterFrom" 
+          dateFormat="dd.mm.yy"
+          :maxDate="filterTo || new Date()"
+          showIcon
+          placeholder="Начало"
+          @date-select="onFilterChange"
+          showButtonBar
+          @clear-click="filterFrom = null; onFilterChange()"
+        />
+      </div>
+      <div class="filter-group">
+        <label>По:</label>
+        <Calendar 
+          v-model="filterTo" 
+          dateFormat="dd.mm.yy"
+          :minDate="filterFrom"
+          :maxDate="new Date()"
+          showIcon
+          placeholder="Конец"
+          @date-select="onFilterChange"
+          showButtonBar
+          @clear-click="filterTo = null; onFilterChange()"
+        />
+      </div>
+      <span class="filter-total">Всего: <strong>{{ totalRecords }}</strong></span>
+    </div>
     
     <Card>
       <template #content>
@@ -10,9 +57,13 @@
           :value="snapshots" 
           :loading="loading"
           :paginator="true"
-          :rows="20"
+          :rows="pageSize"
+          :totalRecords="totalRecords"
+          :lazy="true"
+          @page="onPage($event)"
           responsiveLayout="scroll"
           emptyMessage="Нет снимков"
+          :rowsPerPageOptions="[20, 50, 100]"
         >
           <Column field="id" header="ID" />
           <Column field="account.name" header="Аккаунт" />
@@ -191,7 +242,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useToast } from 'primevue/usetoast'
-import { getSnapshots, createSnapshotsForRange as apiCreateRange, clearAllSnapshots as apiClearSnapshots } from '@/services/api'
+import { getSnapshots, getAccounts, createSnapshotsForRange as apiCreateRange, clearAllSnapshots as apiClearSnapshots } from '@/services/api'
 import { Eye, Plus, Trash2, Calendar as CalendarIcon, Camera } from 'lucide-vue-next'
 
 const toast = useToast()
@@ -199,6 +250,19 @@ const snapshots = ref([])
 const loading = ref(false)
 const showDialog = ref(false)
 const selectedSnapshot = ref(null)
+
+// Серверная пагинация
+const currentPage = ref(1)
+const pageSize = ref(20)
+const totalRecords = ref(0)
+
+// Фильтр по периоду
+const filterFrom = ref(null)
+const filterTo = ref(null)
+
+// Фильтр по аккаунту
+const filterAccountId = ref(null)
+const accountOptions = ref([])
 
 // FAB
 const fabOpen = ref(false)
@@ -230,13 +294,40 @@ const clearError = ref('')
 const loadSnapshots = async () => {
   loading.value = true
   try {
-    const { data } = await getSnapshots()
-    snapshots.value = data || []
+    const params = {
+      page: currentPage.value,
+      page_size: pageSize.value
+    }
+    if (filterFrom.value) {
+      params.from = toDateStr(filterFrom.value)
+    }
+    if (filterTo.value) {
+      params.to = toDateStr(filterTo.value)
+    }
+    if (filterAccountId.value) {
+      params.account_id = filterAccountId.value
+    }
+    const { data } = await getSnapshots(params)
+    snapshots.value = data.data || []
+    totalRecords.value = data.total || 0
   } catch (error) {
     console.error('Ошибка загрузки снимков:', error)
   } finally {
     loading.value = false
   }
+}
+
+// Обработка серверной пагинации
+const onPage = (event) => {
+  currentPage.value = event.page + 1 // PrimeVue отдаёт 0-based
+  pageSize.value = event.rows
+  loadSnapshots()
+}
+
+// Обработка фильтра по периоду
+const onFilterChange = () => {
+  currentPage.value = 1
+  loadSnapshots()
 }
 
 const formatDate = (date) => {
@@ -322,8 +413,15 @@ const clearAllSnapshots = async () => {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadSnapshots()
+  // Загружаем список аккаунтов для фильтра
+  try {
+    const { data } = await getAccounts()
+    accountOptions.value = (data || []).map(a => ({ id: a.id, name: a.name }))
+  } catch (e) {
+    console.error('Ошибка загрузки аккаунтов:', e)
+  }
 })
 </script>
 
@@ -343,6 +441,37 @@ onMounted(() => {
 .page-title {
   margin: 0;
   font-size: 1.5rem;
+}
+
+/* === Фильтр по периоду === */
+.period-filter {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-group label {
+  font-weight: 500;
+  color: var(--text-color-secondary);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.filter-total {
+  margin-left: auto;
+  color: var(--text-color-secondary);
+  font-size: 0.9rem;
+}
+
+.filter-dropdown {
+  min-width: 220px;
 }
 
 .units-count {
