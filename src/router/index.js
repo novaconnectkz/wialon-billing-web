@@ -65,6 +65,12 @@ const routes = [
         name: 'PartnerInvoices',
         component: () => import('@/views/PartnerInvoices.vue'),
         meta: { requiresAuth: true, requiresPartner: true }
+    },
+    {
+        path: '/partner/contracts',
+        name: 'PartnerContracts',
+        component: () => import('@/views/PartnerContracts.vue'),
+        meta: { requiresAuth: true, requiresPartner: true }
     }
 ]
 

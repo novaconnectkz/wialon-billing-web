@@ -66,6 +66,7 @@ import {
   LogOut,
   BarChart3,
   FileText,
+  FileCheck,
   Sparkles
 } from 'lucide-vue-next'
 
@@ -86,7 +87,8 @@ const allMenuItems = [
   { to: '/history', label: 'История', icon: CalendarClock, requiresAdmin: true },
   { to: '/ai-analytics', label: 'AI Аналитика', icon: Sparkles },
   { to: '/partner', label: 'Мой аккаунт', icon: LayoutDashboard, requiresPartner: true },
-  { to: '/partner/invoices', label: 'Финансы', icon: FileText, requiresPartner: true },
+  { to: '/partner/invoices', label: 'Мои финансы', icon: FileText, requiresPartner: true },
+  { to: '/partner/contracts', label: 'Мои договоры', icon: FileCheck, requiresPartner: true },
 ]
 
 // Фильтруем меню по роли
