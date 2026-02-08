@@ -531,6 +531,9 @@
       </template>
     </Card>
     
+    <!-- Почта (SMTP) -->
+    <SmtpSettings v-if="activeTab === 'email'" />
+    
     <!-- Диалог подключения -->
     <Dialog 
       v-model:visible="showConnectionDialog" 
@@ -786,6 +789,7 @@ import {
   updateAccountDetails as apiUpdateAccountDetails,
   getAISettings, updateAISettings, getAIUsage, triggerAIAnalysis
 } from '@/services/api'
+import SmtpSettings from '@/components/SmtpSettings.vue'
 import { 
   RefreshCw, 
   Plus, 
@@ -806,7 +810,8 @@ import {
   X,
   Circle,
   FileText,
-  Sparkles
+  Sparkles,
+  Mail
 } from 'lucide-vue-next'
 
 const toast = useToast()
@@ -817,7 +822,8 @@ const tabs = [
   { id: 'rates', label: 'Курсы', icon: LineChart },
   { id: 'requisites', label: 'Реквизиты', icon: FileText },
   { id: 'connections', label: 'Подключения', icon: Link2 },
-  { id: 'ai', label: 'AI', icon: Sparkles }
+  { id: 'ai', label: 'AI', icon: Sparkles },
+  { id: 'email', label: 'Почта', icon: Mail }
 ]
 
 const activeTab = ref('accounts')

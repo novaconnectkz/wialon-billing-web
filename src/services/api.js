@@ -143,3 +143,13 @@ export const getPartnerInvoicePDF = (id) => api.get(`/partner/invoices/${id}/pdf
 export const getPartnerCharges = (year, month) => api.get('/partner/charges', { params: { year, month } })
 export const getPartnerBalance = () => api.get('/partner/balance')
 export const getPartnerSnapshots = (year, month) => api.get('/partner/snapshots', { params: { year, month } })
+
+// === SMTP & Email Templates ===
+export const getSMTPSettings = () => api.get('/smtp/settings')
+export const updateSMTPSettings = (data) => api.put('/smtp/settings', data)
+export const testSMTPConnection = () => api.post('/smtp/test')
+export const getEmailTemplates = () => api.get('/smtp/templates')
+export const getEmailTemplate = (type) => api.get(`/smtp/templates/${type}`)
+export const updateEmailTemplate = (type, data) => api.put(`/smtp/templates/${type}`, data)
+export const previewEmailTemplate = (type, vars) => api.post(`/smtp/templates/${type}/preview`, vars)
+export const sendInvoiceEmail = (id) => api.post(`/invoices/${id}/send`)
