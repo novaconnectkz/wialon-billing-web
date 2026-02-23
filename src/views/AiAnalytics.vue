@@ -198,31 +198,95 @@
     <Card class="insights-card">
       <template #title>
         <div class="card-header">
-          <span>История AI-инсайтов</span>
+          <span>AI-инсайты по аккаунтам</span>
           <Badge v-if="insights.length" :value="insights.length" severity="info" />
         </div>
       </template>
       <template #content>
+        <!-- Фильтры по статусам -->
+        <div v-if="insights.length" class="insight-filters">
+          <button 
+            class="filter-btn" 
+            :class="{ active: severityFilter === 'all' }" 
+            @click="severityFilter = 'all'"
+          >
+            Все <span class="filter-count">{{ insights.length }}</span>
+          </button>
+          <button 
+            class="filter-btn filter-critical" 
+            :class="{ active: severityFilter === 'critical' }" 
+            @click="severityFilter = 'critical'"
+            v-if="countBySeverity('critical')"
+          >
+            🔴 Критично <span class="filter-count">{{ countBySeverity('critical') }}</span>
+          </button>
+          <button 
+            class="filter-btn filter-warning" 
+            :class="{ active: severityFilter === 'warning' }" 
+            @click="severityFilter = 'warning'"
+            v-if="countBySeverity('warning')"
+          >
+            🟡 Внимание <span class="filter-count">{{ countBySeverity('warning') }}</span>
+          </button>
+          <button 
+            class="filter-btn filter-info" 
+            :class="{ active: severityFilter === 'info' }" 
+            @click="severityFilter = 'info'"
+            v-if="countBySeverity('info')"
+          >
+            🔵 Информация <span class="filter-count">{{ countBySeverity('info') }}</span>
+          </button>
+        </div>
+
         <div v-if="insightsLoading" class="loading-state">
           <ProgressSpinner style="width: 32px; height: 32px" />
         </div>
-        <div v-else-if="insights.length" class="insights-list">
+        <div v-else-if="filteredInsights.length" class="insights-grid">
           <div 
-            v-for="insight in insights" 
+            v-for="insight in filteredInsights" 
             :key="insight.id"
-            class="insight-item"
-            :class="insight.severity"
+            class="insight-card"
+            :class="'insight-' + insight.severity"
+            @click="openInsightDetail(insight)"
           >
-            <div class="insight-header-row">
-              <Tag :value="insight.severity" :severity="severityToColor(insight.severity)" rounded />
+            <!-- Верхняя строка: бейдж + аккаунт + дата -->
+            <div class="insight-top">
+              <Tag :value="severityLabel(insight.severity)" :severity="severityToColor(insight.severity)" rounded />
+              <span class="insight-account">{{ insight.account?.name || '—' }}</span>
               <span class="insight-date">{{ formatDateTime(insight.created_at) }}</span>
             </div>
+            
+            <!-- Заголовок -->
             <div class="insight-title">{{ insight.title }}</div>
-            <div class="insight-description">{{ insight.description }}</div>
-            <div v-if="insight.financial_impact" class="insight-impact">
-              Влияние: {{ formatCurrency(insight.financial_impact, insight.currency) }}
+            
+            <!-- Метрики -->
+            <div class="insight-metrics">
+              <div v-if="getInsightMeta(insight).delta" class="metric">
+                <span class="metric-icon">
+                  {{ getInsightMeta(insight).delta > 0 ? '📈' : '📉' }}
+                </span>
+                <span class="metric-value" :class="getInsightMeta(insight).delta > 0 ? 'positive' : 'negative'">
+                  {{ getInsightMeta(insight).delta > 0 ? '+' : '' }}{{ getInsightMeta(insight).delta }} объектов
+                </span>
+                <span v-if="getInsightMeta(insight).delta_percent" class="metric-percent">
+                  ({{ getInsightMeta(insight).delta_percent > 0 ? '+' : '' }}{{ getInsightMeta(insight).delta_percent.toFixed(1) }}%)
+                </span>
+              </div>
+              <div v-if="insight.financial_impact" class="metric">
+                <span class="metric-icon">💰</span>
+                <span class="metric-value">
+                  {{ insight.financial_impact > 0 ? '+' : '' }}{{ formatCurrency(insight.financial_impact, insight.currency) }}
+                </span>
+              </div>
             </div>
+            
+            <!-- Описание (компактное, 2 строки) -->
+            <div class="insight-description-short">{{ insight.description }}</div>
           </div>
+        </div>
+        <div v-else-if="insights.length && !filteredInsights.length" class="empty-state">
+          <p>Нет инсайтов с выбранным статусом</p>
+          <small>Выберите другой фильтр</small>
         </div>
         <div v-else class="empty-state">
           <CheckCircle :size="48" class="success-icon" />
@@ -231,6 +295,68 @@
         </div>
       </template>
     </Card>
+
+    <!-- Модальное окно расширенного инсайта -->
+    <Dialog 
+      v-model:visible="insightDialogVisible" 
+      :header="selectedInsight?.title || 'Детали инсайта'" 
+      modal 
+      :style="{ width: '600px' }"
+      :breakpoints="{ '768px': '95vw' }"
+    >
+      <div v-if="selectedInsight" class="insight-detail">
+        <!-- Статус и тип -->
+        <div class="detail-row detail-status">
+          <Tag :value="severityLabel(selectedInsight.severity)" :severity="severityToColor(selectedInsight.severity)" rounded />
+          <Tag :value="insightTypeLabel(selectedInsight.insight_type)" severity="secondary" rounded />
+          <span class="detail-date">{{ formatDateTime(selectedInsight.created_at) }}</span>
+        </div>
+
+        <!-- Аккаунт -->
+        <div class="detail-section">
+          <div class="detail-label">Аккаунт</div>
+          <div class="detail-value detail-account-name">{{ selectedInsight.account?.name || '—' }}</div>
+        </div>
+
+        <!-- Ключевые метрики -->
+        <div class="detail-section detail-metrics-grid">
+          <div v-if="selectedMeta.delta" class="detail-metric-card">
+            <div class="detail-metric-label">Изменение объектов</div>
+            <div class="detail-metric-value" :class="selectedMeta.delta > 0 ? 'positive' : 'negative'">
+              {{ selectedMeta.delta > 0 ? '+' : '' }}{{ selectedMeta.delta }}
+            </div>
+            <div v-if="selectedMeta.delta_percent" class="detail-metric-sub">
+              {{ selectedMeta.delta_percent > 0 ? '+' : '' }}{{ selectedMeta.delta_percent.toFixed(1) }}% за период
+            </div>
+          </div>
+          <div v-if="selectedInsight.financial_impact" class="detail-metric-card">
+            <div class="detail-metric-label">Финансовое влияние</div>
+            <div class="detail-metric-value">
+              {{ selectedInsight.financial_impact > 0 ? '+' : '' }}{{ formatCurrency(selectedInsight.financial_impact, selectedInsight.currency) }}
+            </div>
+            <div class="detail-metric-sub">в месяц</div>
+          </div>
+        </div>
+
+        <!-- Описание -->
+        <div class="detail-section">
+          <div class="detail-label">Анализ</div>
+          <div class="detail-text">{{ selectedInsight.description }}</div>
+        </div>
+
+        <!-- Рекомендация -->
+        <div v-if="selectedMeta.recommendation" class="detail-section">
+          <div class="detail-label">💡 Рекомендация</div>
+          <div class="detail-recommendation">{{ selectedMeta.recommendation }}</div>
+        </div>
+
+        <!-- Мета-информация -->
+        <div class="detail-footer">
+          <span>ID: #{{ selectedInsight.id }}</span>
+          <span>Истекает: {{ formatDateTime(selectedInsight.expires_at) }}</span>
+        </div>
+      </div>
+    </Dialog>
     
     <!-- AI Настройки -->
     <Card class="settings-card">
@@ -284,6 +410,7 @@ import InputSwitch from 'primevue/inputswitch'
 import Dropdown from 'primevue/dropdown'
 import ProgressSpinner from 'primevue/progressspinner'
 import Calendar from 'primevue/calendar'
+import Dialog from 'primevue/dialog'
 import { 
   Sparkles, 
   Truck, 
@@ -313,6 +440,9 @@ const insights = ref([])
 const aiSettings = ref({ enabled: false, has_api_key: false, analysis_model: 'deepseek-reasoner' })
 const selectedPeriod = ref(7)
 const dateRange = ref(null)
+const severityFilter = ref('all')
+const insightDialogVisible = ref(false)
+const selectedInsight = ref(null)
 
 // Ограничения для произвольного диапазона: сегодня и 90 дней назад
 const maxDate = ref(new Date())
@@ -336,6 +466,32 @@ const modelOptions = [
 
 // Computed
 const aiEnabled = computed(() => aiSettings.value.enabled && aiSettings.value.has_api_key)
+
+// Сортировка: critical → warning → info, затем по дате
+const severityOrder = { critical: 0, warning: 1, info: 2 }
+
+const sortedInsights = computed(() => {
+  return [...insights.value].sort((a, b) => {
+    const sa = severityOrder[a.severity] ?? 3
+    const sb = severityOrder[b.severity] ?? 3
+    if (sa !== sb) return sa - sb
+    return new Date(b.created_at) - new Date(a.created_at)
+  })
+})
+
+const filteredInsights = computed(() => {
+  if (severityFilter.value === 'all') return sortedInsights.value
+  return sortedInsights.value.filter(i => i.severity === severityFilter.value)
+})
+
+const countBySeverity = (severity) => {
+  return insights.value.filter(i => i.severity === severity).length
+}
+
+const selectedMeta = computed(() => {
+  if (!selectedInsight.value) return {}
+  return getInsightMeta(selectedInsight.value)
+})
 
 const trendLabel = computed(() => {
   const trend = trends.value?.trend
@@ -468,6 +624,20 @@ const anomalyTypeLabel = (type) => {
   return labels[type] || type
 }
 
+const insightTypeLabel = (type) => {
+  const labels = {
+    churn_risk: '⚠️ Риск оттока',
+    growth: '📈 Рост',
+    financial_impact: '💰 Финансы'
+  }
+  return labels[type] || type
+}
+
+const openInsightDetail = (insight) => {
+  selectedInsight.value = insight
+  insightDialogVisible.value = true
+}
+
 const severityToColor = (severity) => {
   const colors = {
     critical: 'danger',
@@ -475,6 +645,28 @@ const severityToColor = (severity) => {
     info: 'info'
   }
   return colors[severity] || 'secondary'
+}
+
+const severityLabel = (severity) => {
+  const labels = {
+    critical: 'Критично',
+    warning: 'Внимание',
+    info: 'Информация'
+  }
+  return labels[severity] || severity
+}
+
+// Безопасный парсинг metadata JSON из инсайта
+const getInsightMeta = (insight) => {
+  if (!insight.metadata) return {}
+  try {
+    if (typeof insight.metadata === 'string') {
+      return JSON.parse(insight.metadata)
+    }
+    return insight.metadata
+  } catch {
+    return {}
+  }
 }
 
 // Watchers
@@ -704,45 +896,267 @@ onMounted(() => {
   color: var(--text-color-secondary);
 }
 
-/* Insights */
-.insights-list {
+/* Insights — карточки */
+.insights-grid {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
-.insight-item {
-  padding: 1rem;
-  border-radius: 8px;
+.insight-card {
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
   background: var(--surface-ground);
+  border-left: 4px solid var(--text-color-secondary);
+  transition: transform 0.15s, box-shadow 0.15s;
 }
 
-.insight-header-row {
+.insight-card:hover {
+  transform: translateX(2px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+.insight-info { border-left-color: #3b82f6; }
+.insight-warning { border-left-color: #f59e0b; }
+.insight-critical { border-left-color: #ef4444; }
+
+.insight-top {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
   margin-bottom: 0.5rem;
+}
+
+.insight-account {
+  font-size: 0.8rem;
+  color: var(--text-color-secondary);
+  font-weight: 500;
 }
 
 .insight-date {
   font-size: 0.75rem;
   color: var(--text-color-secondary);
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .insight-title {
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+
+.insight-metrics {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.metric {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.metric-icon {
+  font-size: 1.1rem;
+}
+
+.metric-value.positive { color: #22c55e; }
+.metric-value.negative { color: #ef4444; }
+
+.metric-percent {
+  color: var(--text-color-secondary);
+  font-size: 0.8rem;
+  font-weight: 400;
 }
 
 .insight-description {
-  font-size: 0.875rem;
+  font-size: 0.85rem;
+  color: var(--text-color-secondary);
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
+}
+
+/* Фильтры по статусам */
+.insight-filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 20px;
+  border: 1px solid var(--surface-border);
+  background: transparent;
+  color: var(--text-color-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-btn:hover {
+  background: var(--surface-hover);
+}
+
+.filter-btn.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+
+.filter-btn.active.filter-critical {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+.filter-btn.active.filter-warning {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
+  color: #fcd34d;
+}
+
+.filter-btn.active.filter-info {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+
+.filter-count {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* Карточка — клик */
+.insight-card {
+  cursor: pointer;
+}
+
+/* Описание обрезается до 2 строк в списке */
+.insight-description-short {
+  font-size: 0.85rem;
+  color: var(--text-color-secondary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Модальное окно — расширенный инсайт */
+.insight-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.detail-status {
+  flex-wrap: wrap;
+}
+
+.detail-date {
+  margin-left: auto;
+  font-size: 0.8rem;
   color: var(--text-color-secondary);
 }
 
-.insight-impact {
-  margin-top: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 500;
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.detail-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-color-secondary);
+  font-weight: 600;
+}
+
+.detail-value {
+  font-size: 1rem;
+}
+
+.detail-account-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.detail-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.detail-metric-card {
+  background: var(--surface-ground);
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.detail-metric-label {
+  font-size: 0.75rem;
+  color: var(--text-color-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.detail-metric-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.detail-metric-value.positive { color: #22c55e; }
+.detail-metric-value.negative { color: #ef4444; }
+
+.detail-metric-sub {
+  font-size: 0.8rem;
+  color: var(--text-color-secondary);
+  margin-top: 0.15rem;
+}
+
+.detail-text {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-color);
+}
+
+.detail-recommendation {
+  padding: 0.75rem 1rem;
+  background: rgba(59, 130, 246, 0.08);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #93c5fd;
+  line-height: 1.5;
+}
+
+.detail-footer {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--surface-border);
+  font-size: 0.75rem;
+  color: var(--text-color-secondary);
 }
 
 /* Settings */
