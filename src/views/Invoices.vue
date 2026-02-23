@@ -363,10 +363,11 @@ const genMonth = ref(null)
 const genAccountId = ref(null)
 const billingAccounts = ref([])
 
-// Фильтры
+// Фильтры — по умолчанию предыдущий месяц
 const now = new Date()
-const selectedYear = ref(now.getFullYear())
-const selectedMonth = ref(now.getMonth() + 1)
+const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+const selectedYear = ref(prevMonth.getFullYear())
+const selectedMonth = ref(prevMonth.getMonth() + 1)
 
 const years = computed(() => {
   const result = []

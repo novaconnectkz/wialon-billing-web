@@ -132,8 +132,8 @@ export const getAIUsage = (days = 30) => api.get('/ai/usage', { params: { days }
 export const triggerAIAnalysis = () => api.post('/ai/analyze')
 
 // Fleet Analytics
-export const getFleetTrends = (days = 30) => api.get('/ai/fleet-trends', { params: { days } })
-export const analyzeFleetTrends = (days = 30) => api.post('/ai/fleet-analysis', { days })
+export const getFleetTrends = (days = 7) => api.get('/ai/fleet-trends', { params: { days } })
+export const analyzeFleetTrends = (days = 7) => api.post('/ai/fleet-analysis', { days })
 
 // === Partner Portal ===
 export const wialonLogin = (accessToken) => api.post('/auth/wialon-login', { access_token: accessToken })

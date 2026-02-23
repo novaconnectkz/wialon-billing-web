@@ -65,7 +65,24 @@
     
     <!-- Управление -->
     <div class="controls-bar">
-      <SelectButton v-model="selectedPeriod" :options="periodOptions" optionLabel="label" optionValue="value" />
+      <div class="controls-left">
+        <SelectButton v-model="selectedPeriod" :options="periodOptions" optionLabel="label" optionValue="value" :allowEmpty="true" />
+        <div class="date-range-picker">
+          <Calendar 
+            v-model="dateRange" 
+            selectionMode="range" 
+            :manualInput="false"
+            :maxDate="maxDate"
+            :minDate="minDate"
+            dateFormat="dd.mm.yy"
+            placeholder="Выберите период"
+            :showIcon="true"
+            :showButtonBar="true"
+            :numberOfMonths="2"
+            class="custom-date-range"
+          />
+        </div>
+      </div>
       <div class="controls-right">
         <Button 
           label="Обновить данные" 
@@ -102,7 +119,7 @@
       <template #title>
         <div class="card-header">
           <span>Динамика флота</span>
-          <span class="period-label">{{ selectedPeriod }} дней</span>
+          <span class="period-label">{{ periodDisplayLabel }}</span>
         </div>
       </template>
       <template #content>
@@ -266,6 +283,7 @@ import SelectButton from 'primevue/selectbutton'
 import InputSwitch from 'primevue/inputswitch'
 import Dropdown from 'primevue/dropdown'
 import ProgressSpinner from 'primevue/progressspinner'
+import Calendar from 'primevue/calendar'
 import { 
   Sparkles, 
   Truck, 
@@ -293,7 +311,16 @@ const insightsLoading = ref(false)
 const trends = ref(null)
 const insights = ref([])
 const aiSettings = ref({ enabled: false, has_api_key: false, analysis_model: 'deepseek-reasoner' })
-const selectedPeriod = ref(30)
+const selectedPeriod = ref(7)
+const dateRange = ref(null)
+
+// Ограничения для произвольного диапазона: сегодня и 90 дней назад
+const maxDate = ref(new Date())
+const minDate = ref((() => {
+  const d = new Date()
+  d.setDate(d.getDate() - 90)
+  return d
+})())
 
 // Options
 const periodOptions = [
@@ -324,11 +351,32 @@ const trendSeverity = computed(() => {
   return 'secondary'
 })
 
+// Computed: эффективное количество дней для запроса к API
+const effectiveDays = computed(() => {
+  // Если выбран произвольный диапазон с двумя датами
+  if (dateRange.value && dateRange.value[0] && dateRange.value[1]) {
+    const diffMs = dateRange.value[1].getTime() - dateRange.value[0].getTime()
+    const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1
+    return Math.min(Math.max(days, 1), 90)
+  }
+  // Иначе — пресет
+  return selectedPeriod.value || 7
+})
+
+// Computed: лейбл для отображения в заголовке карточки
+const periodDisplayLabel = computed(() => {
+  if (dateRange.value && dateRange.value[0] && dateRange.value[1]) {
+    const fmt = (d) => d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
+    return `${fmt(dateRange.value[0])} – ${fmt(dateRange.value[1])}`
+  }
+  return `${effectiveDays.value} дней`
+})
+
 // Methods
 const loadTrends = async () => {
   loading.value = true
   try {
-    const { data } = await getFleetTrends(selectedPeriod.value)
+    const { data } = await getFleetTrends(effectiveDays.value)
     trends.value = data
   } catch (error) {
     console.error('Ошибка загрузки трендов:', error)
@@ -341,7 +389,7 @@ const loadTrends = async () => {
 const runAnalysis = async () => {
   analyzing.value = true
   try {
-    const { data } = await analyzeFleetTrends(selectedPeriod.value)
+    const { data } = await analyzeFleetTrends(effectiveDays.value)
     trends.value = data
     toast.add({ severity: 'success', summary: 'Готово', detail: 'AI анализ завершён', life: 3000 })
   } catch (error) {
@@ -430,8 +478,20 @@ const severityToColor = (severity) => {
 }
 
 // Watchers
-watch(selectedPeriod, () => {
-  loadTrends()
+// При выборе пресета — сбрасываем произвольный диапазон
+watch(selectedPeriod, (newVal) => {
+  if (newVal) {
+    dateRange.value = null
+    loadTrends()
+  }
+})
+
+// При выборе произвольного диапазона — сбрасываем пресет
+watch(dateRange, (newVal) => {
+  if (newVal && newVal[0] && newVal[1]) {
+    selectedPeriod.value = null
+    loadTrends()
+  }
 })
 
 // Lifecycle
@@ -523,9 +583,44 @@ onMounted(() => {
   gap: 1rem;
 }
 
+.controls-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 .controls-right {
   display: flex;
   gap: 0.5rem;
+}
+
+/* Произвольный диапазон дат */
+.date-range-picker {
+  display: flex;
+  align-items: center;
+}
+
+.custom-date-range {
+  max-width: 260px;
+}
+
+:deep(.custom-date-range .p-inputtext) {
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-card);
+  border-color: var(--surface-border);
+  color: var(--text-color);
+}
+
+:deep(.custom-date-range .p-inputtext::placeholder) {
+  color: var(--text-color-secondary);
+}
+
+:deep(.custom-date-range .p-datepicker-trigger) {
+  background: var(--surface-card);
+  border-color: var(--surface-border);
+  color: var(--text-color-secondary);
 }
 
 /* AI Insight */
