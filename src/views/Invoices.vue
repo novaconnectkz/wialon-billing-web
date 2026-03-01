@@ -546,7 +546,7 @@ const downloadPdf = async (invoice) => {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `invoice_${invoice.id}.pdf`
+    a.download = `invoice_${(invoice.number || invoice.id).replace(/\//g, '_')}.pdf`
     document.body.appendChild(a)
     a.click()
     window.URL.revokeObjectURL(url)
