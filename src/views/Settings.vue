@@ -661,6 +661,96 @@
       </template>
     </Card>
     
+    <!-- API интеграции -->
+    <Card v-if="activeTab === 'api'" class="settings-card">
+      <template #title>
+        <div class="card-header">
+          <span>API для внешних интеграций (1С)</span>
+        </div>
+      </template>
+      <template #content>
+        <div class="api-section">
+          <h4>API-токен</h4>
+          <p class="api-description">Токен используется для авторизации запросов к API экспорта счетов. Передаётся через параметр <code>?token=</code> или заголовок <code>X-API-Token</code>.</p>
+          
+          <div class="token-display" v-if="apiToken">
+            <div class="token-value">
+              <code>{{ showToken ? apiToken : maskToken(apiToken) }}</code>
+            </div>
+            <div class="token-actions">
+              <Button severity="secondary" size="small" @click="showToken = !showToken" v-tooltip="showToken ? 'Скрыть' : 'Показать'">
+                <template #icon>
+                  <Eye :size="16" />
+                </template>
+              </Button>
+              <Button severity="secondary" size="small" @click="copyToken" v-tooltip="'Копировать'">
+                <template #icon>
+                  <Clipboard :size="16" />
+                </template>
+              </Button>
+            </div>
+          </div>
+          <div v-else class="token-empty">
+            <span>Токен не сгенерирован</span>
+          </div>
+          
+          <div class="api-actions">
+            <Button :label="apiToken ? 'Перегенерировать токен' : 'Сгенерировать токен'" severity="info" @click="handleGenerateToken" :loading="generatingToken">
+              <template #icon>
+                <Key :size="18" class="mr-2" />
+              </template>
+            </Button>
+          </div>
+
+          <div v-if="apiToken" class="api-warning">
+            <p>⚠️ Сохраните токен — после закрытия страницы он будет скрыт. При перегенерации старый токен перестанет работать.</p>
+          </div>
+        </div>
+        
+        <div class="api-section">
+          <h4>Доступные эндпоинты</h4>
+          <table class="api-endpoints-table">
+            <thead>
+              <tr>
+                <th>Метод</th>
+                <th>URL</th>
+                <th>Описание</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><Tag value="GET" severity="success" /></td>
+                <td><code>/api/export/1c/invoices</code></td>
+                <td>Массовая выгрузка счетов. Параметры: <code>year</code>, <code>month</code>, <code>status</code></td>
+              </tr>
+              <tr>
+                <td><Tag value="GET" severity="success" /></td>
+                <td><code>/api/export/1c/invoices/:id</code></td>
+                <td>Выгрузка одного счёта по ID</td>
+              </tr>
+              <tr>
+                <td><Tag value="PUT" severity="warning" /></td>
+                <td><code>/api/export/1c/invoices/:id/status</code></td>
+                <td>Обновить статус счёта (оплачен). Body: <code>{"status": "paid"}</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-if="apiToken" class="api-section">
+          <h4>Пример запроса</h4>
+          <div class="code-block">
+            <code>{{ apiExampleUrl }}</code>
+            <Button severity="secondary" size="small" @click="copyExample" v-tooltip="'Копировать'" class="copy-btn">
+              <template #icon>
+                <Clipboard :size="14" />
+              </template>
+            </Button>
+          </div>
+        </div>
+      </template>
+    </Card>
+    
     <!-- Почта (SMTP) -->
     <SmtpSettings v-if="activeTab === 'email'" />
     
@@ -926,7 +1016,7 @@ import InputSwitch from 'primevue/inputswitch'
 import { 
   getAccounts, toggleAccount as apiToggleAccount, syncAccounts,
   getModules, createModule, updateModule, deleteModule,
-  getSettings, updateSettings,
+  getSettings, updateSettings, generateAPIToken as apiGenerateToken,
   getExchangeRates,
   getConnections, createConnection as apiCreateConnection, 
   updateConnection as apiUpdateConnection, deleteConnection as apiDeleteConnection,
@@ -959,7 +1049,8 @@ import {
   Sparkles,
   Mail,
   Upload,
-  Eye
+  Eye,
+  Clipboard
 } from 'lucide-vue-next'
 
 const toast = useToast()
@@ -971,7 +1062,8 @@ const tabs = [
   { id: 'requisites', label: 'Реквизиты', icon: FileText },
   { id: 'connections', label: 'Подключения', icon: Link2 },
   { id: 'ai', label: 'AI', icon: Sparkles },
-  { id: 'email', label: 'Почта', icon: Mail }
+  { id: 'email', label: 'Почта', icon: Mail },
+  { id: 'api', label: 'API', icon: Key }
 ]
 
 const activeTab = ref('accounts')
@@ -1005,6 +1097,45 @@ const billingCurrencies = [
   { label: 'RUB (Рубли)', value: 'RUB' },
   { label: 'KZT (Тенге)', value: 'KZT' }
 ]
+
+// API интеграции (1С)
+const apiToken = ref('')
+const showToken = ref(false)
+const generatingToken = ref(false)
+
+const maskToken = (token) => {
+  if (!token || token.length < 8) return '****'
+  return '****' + token.slice(-8)
+}
+
+const apiExampleUrl = computed(() => {
+  const base = window.location.origin
+  return `${base}/api/export/1c/invoices?year=2026&month=2&token=${apiToken.value}`
+})
+
+const handleGenerateToken = async () => {
+  generatingToken.value = true
+  try {
+    const { data } = await apiGenerateToken()
+    apiToken.value = data.token
+    showToken.value = true
+    toast.add({ severity: 'success', summary: 'Готово', detail: 'API-токен сгенерирован. Сохраните его!' })
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: error.response?.data?.error || error.message })
+  } finally {
+    generatingToken.value = false
+  }
+}
+
+const copyToken = () => {
+  navigator.clipboard.writeText(apiToken.value)
+  toast.add({ severity: 'info', summary: 'Скопировано', detail: 'Токен скопирован в буфер обмена', life: 2000 })
+}
+
+const copyExample = () => {
+  navigator.clipboard.writeText(apiExampleUrl.value)
+  toast.add({ severity: 'info', summary: 'Скопировано', detail: 'URL скопирован в буфер обмена', life: 2000 })
+}
 
 // AI Аналитика (DeepSeek)
 const savingAI = ref(false)
@@ -2157,4 +2288,142 @@ onMounted(() => {
   margin-top: 0.5rem;
   margin-bottom: 0;
 }
+
+/* === API Интеграции (1С) === */
+.api-section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.api-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.api-section h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: var(--text-color);
+}
+
+.api-description {
+  color: var(--text-color-secondary);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.api-description code {
+  background: var(--surface-hover);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.token-display {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--surface-ground);
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.token-value {
+  flex: 1;
+  overflow: hidden;
+}
+
+.token-value code {
+  font-size: 0.9rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  word-break: break-all;
+  color: var(--primary-color);
+}
+
+.token-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.token-empty {
+  background: var(--surface-ground);
+  border: 2px dashed var(--surface-border);
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-color-secondary);
+  margin-bottom: 1rem;
+}
+
+.api-actions {
+  margin-bottom: 1rem;
+}
+
+.api-warning {
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.api-warning p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-color);
+}
+
+.api-endpoints-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.api-endpoints-table th {
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 2px solid var(--surface-border);
+  color: var(--text-color-secondary);
+  font-weight: 600;
+}
+
+.api-endpoints-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--surface-border);
+  vertical-align: middle;
+}
+
+.api-endpoints-table code {
+  background: var(--surface-hover);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.code-block {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface-ground);
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.code-block code {
+  flex: 1;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  word-break: break-all;
+  color: var(--primary-color);
+}
+
+.code-block .copy-btn {
+  flex-shrink: 0;
+}
 </style>
+

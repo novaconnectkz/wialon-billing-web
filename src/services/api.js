@@ -55,6 +55,7 @@ export const deleteModule = (id) => api.delete(`/modules/${id}`)
 // Settings
 export const getSettings = () => api.get('/settings')
 export const updateSettings = (data) => api.put('/settings', data)
+export const generateAPIToken = () => api.post('/settings/api-token')
 
 // Exchange Rates
 export const getExchangeRates = () => api.get('/exchange-rates')
