@@ -1311,11 +1311,32 @@ const openAccountDetails = (account) => {
 const saveAccountDetails = async () => {
   savingAccountDetails.value = true
   try {
+    // Надёжная конвертация даты: Date-объект или строка
+    let contractDateStr = null
+    const raw = accountDetailsForm.value.contract_date
+    if (raw) {
+      if (raw instanceof Date && !isNaN(raw)) {
+        // Date-объект: форматируем вручную чтобы избежать сдвига таймзоны
+        const y = raw.getFullYear()
+        const m = String(raw.getMonth() + 1).padStart(2, '0')
+        const d = String(raw.getDate()).padStart(2, '0')
+        contractDateStr = `${y}-${m}-${d}`
+      } else if (typeof raw === 'string' && raw.length > 0) {
+        // Строка: пробуем распарсить
+        const parsed = new Date(raw)
+        if (!isNaN(parsed)) {
+          const y = parsed.getFullYear()
+          const m = String(parsed.getMonth() + 1).padStart(2, '0')
+          const d = String(parsed.getDate()).padStart(2, '0')
+          contractDateStr = `${y}-${m}-${d}`
+        }
+      }
+    }
+    console.log('[DEBUG] contract_date отправляем:', contractDateStr, 'raw:', raw)
+    
     const payload = {
       ...accountDetailsForm.value,
-      contract_date: accountDetailsForm.value.contract_date 
-        ? accountDetailsForm.value.contract_date.toISOString().split('T')[0] 
-        : null
+      contract_date: contractDateStr
     }
     await apiUpdateAccountDetails(editingAccountId.value, payload)
     toast.add({ severity: 'success', summary: 'Сохранено', detail: 'Реквизиты покупателя обновлены' })
