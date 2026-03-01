@@ -78,23 +78,23 @@
           size="small"
           class="invoices-table"
         >
-          <Column header="№" style="width: 60px">
+          <Column header="№" style="white-space: nowrap">
             <template #body="{ data }">
-              <span class="invoice-number">#{{ data.id }}</span>
+              <span class="invoice-number">{{ data.number || '#' + data.id }}</span>
             </template>
           </Column>
           <Column field="account.name" header="Аккаунт" />
-          <Column field="period" header="Период" style="width: 120px">
+          <Column field="period" header="Период" style="white-space: nowrap">
             <template #body="{ data }">
               <span class="period-cell">{{ formatPeriod(data.period) }}</span>
             </template>
           </Column>
-          <Column field="total_amount" header="Сумма" style="width: 150px">
+          <Column field="total_amount" header="Сумма" style="white-space: nowrap">
             <template #body="{ data }">
               <span class="amount-cell">{{ formatCurrency(data.total_amount) }} {{ data.currency }}</span>
             </template>
           </Column>
-          <Column field="status" header="Статус" style="width: 80px; text-align: center">
+          <Column field="status" header="Статус" style="white-space: nowrap; text-align: center">
             <template #body="{ data }">
               <div 
                 v-tooltip.top="getStatusLabel(data.status)"
@@ -105,12 +105,12 @@
               </div>
             </template>
           </Column>
-          <Column field="created_at" header="Создан" style="width: 100px">
+          <Column field="created_at" header="Создан" style="white-space: nowrap">
             <template #body="{ data }">
               <span class="date-cell">{{ formatDate(data.created_at) }}</span>
             </template>
           </Column>
-          <Column header="Действия" style="width: 150px">
+          <Column header="Действия" style="white-space: nowrap">
             <template #body="{ data }">
               <div class="action-buttons">
                 <Button 

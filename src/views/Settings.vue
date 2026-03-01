@@ -1332,7 +1332,6 @@ const saveAccountDetails = async () => {
         }
       }
     }
-    console.log('[DEBUG] contract_date отправляем:', contractDateStr, 'raw:', raw)
     
     const payload = {
       ...accountDetailsForm.value,
