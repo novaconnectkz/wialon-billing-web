@@ -413,6 +413,136 @@
               <InputNumber v-model="settings.vat_rate" :min="0" :max="100" suffix="%" />
             </div>
           </div>
+
+          <h4>Подпись и печать</h4>
+          <div class="stamp-section">
+            <div class="upload-grid">
+              <!-- Загрузка подписи -->
+              <div class="upload-block">
+                <label>Подпись (PNG)</label>
+                <div 
+                  class="drop-zone" 
+                  :class="{ 'has-image': settings.signature_image }"
+                  @dragover.prevent
+                  @drop.prevent="e => handleFileDrop(e, 'signature')"
+                  @click="$refs.signatureInput.click()"
+                >
+                  <img v-if="settings.signature_image" :src="settings.signature_image" alt="Подпись" class="preview-thumb" />
+                  <div v-else class="drop-placeholder">
+                    <Upload :size="24" />
+                    <span>Перетащите или нажмите</span>
+                  </div>
+                  <button v-if="settings.signature_image" class="remove-btn" @click.stop="settings.signature_image = ''">✕</button>
+                </div>
+                <input ref="signatureInput" type="file" accept="image/png" hidden @change="e => handleFileSelect(e, 'signature')" />
+                <div class="coords-row">
+                  <div class="coord-field">
+                    <label>X (мм)</label>
+                    <InputNumber v-model="settings.signature_x" :min="0" :max="200" />
+                  </div>
+                  <div class="coord-field">
+                    <label>Y (мм)</label>
+                    <InputNumber v-model="settings.signature_y" :min="-50" :max="50" />
+                  </div>
+                  <div class="coord-field">
+                    <label>Ширина (мм)</label>
+                    <InputNumber v-model="settings.signature_w" :min="5" :max="100" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Загрузка печати -->
+              <div class="upload-block">
+                <label>Печать (PNG)</label>
+                <div 
+                  class="drop-zone"
+                  :class="{ 'has-image': settings.stamp_image }"
+                  @dragover.prevent
+                  @drop.prevent="e => handleFileDrop(e, 'stamp')"
+                  @click="$refs.stampInput.click()"
+                >
+                  <img v-if="settings.stamp_image" :src="settings.stamp_image" alt="Печать" class="preview-thumb" />
+                  <div v-else class="drop-placeholder">
+                    <Upload :size="24" />
+                    <span>Перетащите или нажмите</span>
+                  </div>
+                  <button v-if="settings.stamp_image" class="remove-btn" @click.stop="settings.stamp_image = ''">✕</button>
+                </div>
+                <input ref="stampInput" type="file" accept="image/png" hidden @change="e => handleFileSelect(e, 'stamp')" />
+                <div class="coords-row">
+                  <div class="coord-field">
+                    <label>X (мм)</label>
+                    <InputNumber v-model="settings.stamp_x" :min="0" :max="200" />
+                  </div>
+                  <div class="coord-field">
+                    <label>Y (мм)</label>
+                    <InputNumber v-model="settings.stamp_y" :min="-50" :max="50" />
+                  </div>
+                  <div class="coord-field">
+                    <label>Ширина (мм)</label>
+                    <InputNumber v-model="settings.stamp_w" :min="5" :max="100" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Предпросмотр -->
+            <div class="preview-section" v-if="settings.signature_image || settings.stamp_image">
+              <Button 
+                label="Предпросмотр подписи"
+                severity="secondary" 
+                text
+                @click="showSignaturePreview = !showSignaturePreview"
+              >
+                <template #icon>
+                  <Eye :size="18" class="mr-2" />
+                </template>
+              </Button>
+              
+              <div v-if="showSignaturePreview" class="signature-preview">
+                <div class="preview-label">Блок подписи (масштаб ≈ A4 ширина 190мм)</div>
+                <div class="preview-canvas" ref="previewCanvas">
+                  <!-- Линия подписи -->
+                  <div class="preview-line">
+                    <span class="preview-executor">Исполнитель</span>
+                    <span class="preview-sign-line"></span>
+                    <span class="preview-name">/{{ settings.executor_name || 'ФИО' }}/</span>
+                  </div>
+
+                  <!-- Подпись (перетаскиваемая) -->
+                  <img 
+                    v-if="settings.signature_image"
+                    :src="settings.signature_image" 
+                    class="preview-img preview-signature"
+                    :style="{
+                      left: mmToPercent(settings.signature_x || 50) + '%',
+                      top: mmToPreviewPx(settings.signature_y || 0) + 'px',
+                      width: mmToPercent(settings.signature_w || 40) + '%'
+                    }"
+                    draggable="true"
+                    @dragstart="e => startDrag(e, 'signature')"
+                    @dragend="e => endDrag(e, 'signature')"
+                  />
+
+                  <!-- Печать (перетаскиваемая) -->
+                  <img 
+                    v-if="settings.stamp_image"
+                    :src="settings.stamp_image" 
+                    class="preview-img preview-stamp"
+                    :style="{
+                      left: mmToPercent(settings.stamp_x || 90) + '%',
+                      top: mmToPreviewPx(settings.stamp_y || 5) + 'px',
+                      width: mmToPercent(settings.stamp_w || 30) + '%'
+                    }"
+                    draggable="true"
+                    @dragstart="e => startDrag(e, 'stamp')"
+                    @dragend="e => endDrag(e, 'stamp')"
+                  />
+                </div>
+                <p class="preview-hint">Перетащите изображения для изменения позиции. Координаты обновятся автоматически.</p>
+              </div>
+            </div>
+          </div>
         </form>
       </template>
     </Card>
@@ -601,6 +731,22 @@
         <div class="field">
           <label>Описание</label>
           <InputText v-model="moduleForm.description" class="w-full" />
+        </div>
+        
+        <div class="field">
+          <label>Код (для счёта)</label>
+          <InputText v-model="moduleForm.code" class="w-full" placeholder="00000000013" />
+        </div>
+        
+        <div class="field">
+          <label>Ед. измерения (для счёта)</label>
+          <Dropdown 
+            v-model="moduleForm.unit"
+            :options="unitTypes"
+            optionLabel="label"
+            optionValue="value"
+            class="w-full"
+          />
         </div>
         
         <div class="field-group">
@@ -811,7 +957,9 @@ import {
   Circle,
   FileText,
   Sparkles,
-  Mail
+  Mail,
+  Upload,
+  Eye
 } from 'lucide-vue-next'
 
 const toast = useToast()
@@ -830,6 +978,9 @@ const activeTab = ref('accounts')
 const loading = ref(false)
 const syncing = ref(false)
 const savingRequisites = ref(false)
+const showSignaturePreview = ref(false)
+const previewCanvas = ref(null)
+const dragOffset = ref({ x: 0, y: 0 })
 
 // Данные
 const accounts = ref([])
@@ -936,6 +1087,8 @@ const editingModule = ref(null)
 const moduleForm = ref({
   name: '',
   description: '',
+  code: '',
+  unit: 'услуга',
   price: 0,
   activation_price: null,
   currency: 'EUR',
@@ -961,6 +1114,16 @@ const billingTypes = [
 const pricingTypes = [
   { label: 'За объект (среднее × цена)', value: 'per_unit' },
   { label: 'Фикса (ежемесячно)', value: 'fixed' }
+]
+
+const unitTypes = [
+  { label: 'Услуга', value: 'услуга' },
+  { label: 'Штука (шт.)', value: 'шт.' },
+  { label: 'Пакет', value: 'пакет' },
+  { label: 'Месяц', value: 'месяц' },
+  { label: 'Лицензия', value: 'лицензия' },
+  { label: 'Объект', value: 'объект' },
+  { label: 'Подписка', value: 'подписка' }
 ]
 
 // Загрузка данных
@@ -1023,6 +1186,71 @@ const saveRequisites = async () => {
     toast.add({ severity: 'error', summary: 'Ошибка', detail: error.response?.data?.error || error.message })
   } finally {
     savingRequisites.value = false
+  }
+}
+
+// === Загрузка подписи и печати ===
+const handleFileSelect = (event, type) => {
+  const file = event.target.files[0]
+  if (!file) return
+  readFileAsBase64(file, type)
+}
+
+const handleFileDrop = (event, type) => {
+  const file = event.dataTransfer.files[0]
+  if (!file) return
+  if (!file.type.includes('png')) {
+    toast.add({ severity: 'warn', summary: 'Формат', detail: 'Поддерживается только PNG' })
+    return
+  }
+  readFileAsBase64(file, type)
+}
+
+const readFileAsBase64 = (file, type) => {
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const key = type === 'signature' ? 'signature_image' : 'stamp_image'
+    settings.value[key] = e.target.result
+  }
+  reader.readAsDataURL(file)
+}
+
+// Конвертация мм → % от ширины превью (190мм = 100%)
+const mmToPercent = (mm) => (mm / 190) * 100
+
+// Конвертация Y мм → пиксели превью (примерно 3px/мм)
+const mmToPreviewPx = (mm) => mm * 3
+
+// Drag-and-drop в предпросмотре
+const startDrag = (e, type) => {
+  const rect = e.target.getBoundingClientRect()
+  dragOffset.value = {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
+  }
+}
+
+const endDrag = (e, type) => {
+  const canvas = previewCanvas.value
+  if (!canvas) return
+  const rect = canvas.getBoundingClientRect()
+  const canvasW = rect.width
+  const canvasH = rect.height
+
+  // Позиция мыши относительно canvas
+  const dropX = e.clientX - rect.left - dragOffset.value.x
+  const dropY = e.clientY - rect.top - dragOffset.value.y
+
+  // Конвертация px → мм (ширина canvas = 190мм)
+  const mmX = Math.round((dropX / canvasW) * 190)
+  const mmY = Math.round((dropY / 3)) // 3px/мм
+
+  if (type === 'signature') {
+    settings.value.signature_x = Math.max(0, Math.min(190, mmX))
+    settings.value.signature_y = Math.max(-50, Math.min(50, mmY))
+  } else {
+    settings.value.stamp_x = Math.max(0, Math.min(190, mmX))
+    settings.value.stamp_y = Math.max(-50, Math.min(50, mmY))
   }
 }
 
@@ -1191,7 +1419,7 @@ const saveModule = async () => {
     
     showModuleDialog.value = false
     editingModule.value = null
-    moduleForm.value = { name: '', description: '', price: 0, activation_price: null, currency: 'EUR', billing_type: 'monthly', pricing_type: 'per_unit' }
+    moduleForm.value = { name: '', description: '', code: '', unit: 'услуга', price: 0, activation_price: null, currency: 'EUR', billing_type: 'monthly', pricing_type: 'per_unit' }
     await loadData()
     
     toast.add({ severity: 'success', summary: 'Успех', detail: 'Модуль сохранён' })
@@ -1721,5 +1949,192 @@ onMounted(() => {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--surface-border);
+}
+
+/* Подпись и печать */
+.stamp-section {
+  margin-top: 0.5rem;
+}
+
+.upload-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.upload-block > label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.drop-zone {
+  position: relative;
+  border: 2px dashed var(--surface-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-50);
+}
+
+.drop-zone:hover {
+  border-color: var(--primary-color);
+  background: rgba(var(--primary-color-rgb, 99, 102, 241), 0.05);
+}
+
+.drop-zone.has-image {
+  border-style: solid;
+  border-color: var(--surface-300);
+  padding: 0.75rem;
+}
+
+.drop-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-color-secondary);
+}
+
+.drop-placeholder span {
+  font-size: 0.85rem;
+}
+
+.preview-thumb {
+  max-width: 100%;
+  max-height: 100px;
+  object-fit: contain;
+}
+
+.remove-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(239, 68, 68, 0.85);
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.remove-btn:hover {
+  background: #ef4444;
+}
+
+.coords-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.coord-field {
+  flex: 1;
+}
+
+.coord-field label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-color-secondary);
+  margin-bottom: 4px;
+}
+
+.coord-field :deep(.p-inputnumber) {
+  width: 100%;
+}
+
+.preview-section {
+  margin-top: 1.5rem;
+}
+
+.signature-preview {
+  margin-top: 1rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  padding: 1rem;
+  background: white;
+}
+
+.preview-label {
+  font-size: 0.75rem;
+  color: var(--text-color-secondary);
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
+.preview-canvas {
+  position: relative;
+  width: 100%;
+  height: 120px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.preview-line {
+  position: absolute;
+  bottom: 30px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.preview-executor {
+  font-weight: 700;
+  font-size: 11px;
+  color: #1a202c;
+  white-space: nowrap;
+}
+
+.preview-sign-line {
+  flex: 1;
+  border-bottom: 1px solid #1a202c;
+  margin-bottom: 2px;
+}
+
+.preview-name {
+  font-size: 11px;
+  color: #1a202c;
+  white-space: nowrap;
+}
+
+.preview-img {
+  position: absolute;
+  cursor: grab;
+  opacity: 0.85;
+  transition: opacity 0.2s;
+  pointer-events: auto;
+}
+
+.preview-img:hover {
+  opacity: 1;
+}
+
+.preview-img:active {
+  cursor: grabbing;
+}
+
+.preview-hint {
+  font-size: 0.75rem;
+  color: var(--text-color-secondary);
+  text-align: center;
+  margin-top: 0.5rem;
+  margin-bottom: 0;
 }
 </style>
