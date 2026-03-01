@@ -142,6 +142,16 @@
                   v-tooltip="'Отправить'"
                 />
                 <Button 
+                  v-if="data.status === 'sent'"
+                  icon="pi pi-replay"
+                  text 
+                  rounded 
+                  severity="secondary"
+                  size="small"
+                  @click="sendInvoice(data)"
+                  v-tooltip="'Отправить повторно'"
+                />
+                <Button 
                   v-if="data.status !== 'paid'"
                   icon="pi pi-check"
                   text 
@@ -337,7 +347,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getInvoices, generateInvoices, updateInvoiceStatus, clearAllInvoices, getSelectedAccounts } from '@/services/api'
+import { getInvoices, generateInvoices, updateInvoiceStatus, clearAllInvoices, getSelectedAccounts, sendInvoiceEmail } from '@/services/api'
 import { FileText, Clock, CheckCircle, DollarSign, Plus, Trash2, CalendarDays, Send, AlertCircle } from 'lucide-vue-next'
 import { useToast } from 'primevue/usetoast'
 import Tag from 'primevue/tag'
@@ -548,11 +558,11 @@ const downloadPdf = async (invoice) => {
 
 const sendInvoice = async (invoice) => {
   try {
-    await updateInvoiceStatus(invoice.id, 'sent')
-    toast.add({ severity: 'success', summary: 'Отправлено', detail: 'Статус изменён на "Отправлен"', life: 3000 })
+    const { data } = await sendInvoiceEmail(invoice.id)
+    toast.add({ severity: 'success', summary: 'Отправлено', detail: data.message || 'Счёт отправлен по email', life: 3000 })
     await loadInvoices()
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось обновить статус', life: 3000 })
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: error.response?.data?.error || 'Не удалось отправить счёт', life: 3000 })
   }
 }
 
