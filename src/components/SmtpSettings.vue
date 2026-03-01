@@ -56,6 +56,13 @@
             </div>
           </div>
 
+          <div class="form-row">
+            <div class="field flex-1">
+              <label>Email для копии счетов</label>
+              <InputText v-model="smtpForm.copy_email" placeholder="copy@example.com" class="w-full" />
+            </div>
+          </div>
+
           <div class="form-row switches">
             <div class="switch-item">
               <label>TLS/STARTTLS</label>
@@ -64,6 +71,10 @@
             <div class="switch-item">
               <label>Включить SMTP</label>
               <InputSwitch v-model="smtpForm.enabled" />
+            </div>
+            <div class="switch-item">
+              <label>Отправлять копию</label>
+              <InputSwitch v-model="smtpForm.copy_enabled" />
             </div>
           </div>
         </form>
@@ -292,7 +303,9 @@ const smtpForm = ref({
   password: '',
   from_email: '',
   from_name: '',
-  use_tls: true
+  use_tls: true,
+  copy_email: '',
+  copy_enabled: false
 })
 
 // === Шаблоны ===
@@ -315,7 +328,7 @@ const templateTypes = [
 
 const templateVariables = {
   otp: ['code', 'email', 'expires_minutes'],
-  invoice: ['company_name', 'period', 'amount', 'currency', 'invoice_number'],
+  invoice: ['company_name', 'sender_company_name', 'sender_phone', 'period', 'amount', 'currency', 'invoice_number'],
   notification: ['title', 'message', 'date']
 }
 
@@ -356,7 +369,9 @@ async function loadSettings() {
       password: '',
       from_email: data.from_email || '',
       from_name: data.from_name || '',
-      use_tls: data.use_tls !== false
+      use_tls: data.use_tls !== false,
+      copy_email: data.copy_email || '',
+      copy_enabled: data.copy_enabled || false
     }
     hasPassword.value = data.has_password || false
   } catch (err) {
