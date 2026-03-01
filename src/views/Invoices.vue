@@ -129,7 +129,16 @@
                   severity="secondary"
                   size="small"
                   @click="downloadPdf(data)"
-                  v-tooltip="'Скачать PDF'"
+                  v-tooltip="'Скачать счёт (PDF)'"
+                />
+                <Button 
+                  icon="pi pi-file-excel" 
+                  text 
+                  rounded 
+                  severity="success"
+                  size="small"
+                  @click="downloadExcel(data)"
+                  v-tooltip="'Скачать отчёт (Excel)'"
                 />
                 <Button 
                   v-if="data.status === 'draft'"
@@ -553,6 +562,29 @@ const downloadPdf = async (invoice) => {
     document.body.removeChild(a)
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось скачать PDF', life: 3000 })
+  }
+}
+
+const downloadExcel = async (invoice) => {
+  try {
+    const token = localStorage.getItem('token')
+    const response = await fetch(`/api/invoices/${invoice.id}/excel`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    
+    if (!response.ok) throw new Error('Ошибка загрузки Excel')
+    
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `charges_${(invoice.number || invoice.id).replace(/\//g, '_')}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось скачать Excel', life: 3000 })
   }
 }
 
