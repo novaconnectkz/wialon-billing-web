@@ -4,43 +4,74 @@
     
     <!-- Статистика -->
     <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon-wrapper blue">
-          <FileText :size="24" />
+      <!-- Всего счетов -->
+      <div class="stat-card-v2" :class="{ 'stat-active': activeStatusFilter === null }" @click="toggleStatusFilter(null)">
+        <div class="card-glow glow-blue"></div>
+        <div class="stat-header-v2">
+          <div class="stat-icon-v2 icon-blue"><FileText :size="18" /></div>
+          <span class="stat-period-tag">{{ filteredInvoices.length }} / {{ invoices.length }}</span>
         </div>
-        <div class="stat-content">
-          <div class="stat-label">Всего счетов</div>
-          <div class="stat-value">{{ invoices.length }}</div>
+        <div class="stat-value-v2">{{ filteredByPeriod.length }}</div>
+        <div class="stat-label-v2">Всего счетов</div>
+      </div>
+
+      <!-- Черновики -->
+      <div class="stat-card-v2" :class="{ 'stat-active': activeStatusFilter === 'draft' }" @click="toggleStatusFilter('draft')">
+        <div class="card-glow glow-yellow"></div>
+        <div class="stat-header-v2">
+          <div class="stat-icon-v2 icon-yellow"><Clock :size="18" /></div>
+        </div>
+        <div class="stat-value-v2">{{ draftCount }}</div>
+        <div class="stat-label-v2">Черновики</div>
+        <div class="stat-progress-wrap">
+          <div class="stat-progress-fill fill-yellow" :style="{ width: filteredByPeriod.length ? (draftCount / filteredByPeriod.length * 100) + '%' : '0%' }"></div>
         </div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-icon-wrapper yellow">
-          <Clock :size="24" />
+      <!-- Оплачено -->
+      <div class="stat-card-v2" :class="{ 'stat-active': activeStatusFilter === 'paid' }" @click="toggleStatusFilter('paid')">
+        <div class="card-glow glow-green"></div>
+        <div class="stat-header-v2">
+          <div class="stat-icon-v2 icon-green"><CheckCircle :size="18" /></div>
+          <span v-if="filteredByPeriod.length" class="stat-pct-pill pill-green">{{ Math.round(paidCount / filteredByPeriod.length * 100) }}%</span>
         </div>
-        <div class="stat-content">
-          <div class="stat-label">Черновики</div>
-          <div class="stat-value">{{ draftCount }}</div>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon-wrapper green">
-          <CheckCircle :size="24" />
-        </div>
-        <div class="stat-content">
-          <div class="stat-label">Оплачено</div>
-          <div class="stat-value">{{ paidCount }}</div>
+        <div class="stat-value-v2" style="color: #4ade80;">{{ paidCount }}</div>
+        <div class="stat-label-v2">Оплачено</div>
+        <div class="stat-progress-wrap">
+          <div class="stat-progress-fill fill-green" :style="{ width: filteredByPeriod.length ? (paidCount / filteredByPeriod.length * 100) + '%' : '0%' }"></div>
         </div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-icon-wrapper purple">
-          <DollarSign :size="24" />
+      <!-- Не оплачено -->
+      <div class="stat-card-v2" :class="{ 'stat-active': activeStatusFilter === 'unpaid' }" @click="toggleStatusFilter('unpaid')">
+        <div class="card-glow glow-red"></div>
+        <div class="stat-header-v2">
+          <div class="stat-icon-v2 icon-red"><XCircle :size="18" /></div>
+          <span v-if="filteredByPeriod.length" class="stat-pct-pill pill-red">{{ Math.round(unpaidCount / filteredByPeriod.length * 100) }}%</span>
         </div>
-        <div class="stat-content">
-          <div class="stat-label">Сумма</div>
-          <div class="stat-value">{{ formatCurrency(totalAmount) }}</div>
+        <div class="stat-value-v2" style="color: #f87171;">{{ unpaidCount }}</div>
+        <div class="stat-label-v2">Не оплачено</div>
+        <div class="stat-progress-wrap">
+          <div class="stat-progress-fill fill-red" :style="{ width: filteredByPeriod.length ? (unpaidCount / filteredByPeriod.length * 100) + '%' : '0%' }"></div>
+        </div>
+      </div>
+
+      <!-- Суммы по валютам -->
+      <div class="stat-card-v2 stat-card-currency">
+        <div class="card-glow glow-purple"></div>
+        <div class="stat-header-v2">
+          <div class="stat-icon-v2 icon-purple"><DollarSign :size="18" /></div>
+          <span class="stat-period-tag">{{ currencyBreakdown.length }} {{ currencyBreakdown.length === 1 ? 'валюта' : 'валюты' }}</span>
+        </div>
+        <div class="stat-label-v2" style="margin-bottom: 0.4rem;">Суммы по валютам</div>
+        <div class="currency-rows">
+          <div v-for="cur in currencyBreakdown" :key="cur.code" class="currency-row-item">
+            <div class="currency-label">
+              <div class="cur-dot" :class="'dot-' + cur.code.toLowerCase()"></div>
+              <span class="cur-sym" :class="'sym-' + cur.code.toLowerCase()">{{ cur.symbol }} {{ cur.code }}</span>
+            </div>
+            <span class="cur-val">{{ formatCurrency(cur.amount) }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -355,9 +386,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { getInvoices, generateInvoices, updateInvoiceStatus, clearAllInvoices, getSelectedAccounts, sendInvoiceEmail } from '@/services/api'
-import { FileText, Clock, CheckCircle, DollarSign, Plus, Trash2, CalendarDays, Send, AlertCircle } from 'lucide-vue-next'
+import { FileText, Clock, CheckCircle, DollarSign, XCircle, Plus, Trash2, CalendarDays, Send, AlertCircle } from 'lucide-vue-next'
 import { useToast } from 'primevue/usetoast'
 import Tag from 'primevue/tag'
 import InputText from 'primevue/inputtext'
@@ -500,15 +531,54 @@ const generateFromDialog = async () => {
   }
 }
 
-// Статистика
-const draftCount = computed(() => invoices.value.filter(i => i.status === 'draft').length)
-const paidCount = computed(() => invoices.value.filter(i => i.status === 'paid').length)
-const totalAmount = computed(() => invoices.value.reduce((sum, i) => sum + (i.total_amount || 0), 0))
+// Фильтр по статусу через плашку
+const activeStatusFilter = ref(null) // null | 'draft' | 'paid' | 'unpaid'
 
-const filteredInvoices = computed(() => {
+const toggleStatusFilter = (status) => {
+  // 'unpaid' — псевдо-статус для всех кроме paid
+  // null — сброс фильтра (показать все)
+  if (activeStatusFilter.value === status) {
+    activeStatusFilter.value = null
+  } else {
+    activeStatusFilter.value = status
+  }
+}
+
+// Счета за выбранный период (без фильтра по статусу)
+const filteredByPeriod = computed(() => {
   return invoices.value.filter(i => {
     const period = new Date(i.period)
     return period.getFullYear() === selectedYear.value && (period.getMonth() + 1) === selectedMonth.value
+  })
+})
+
+// Статистика по периоду
+const draftCount = computed(() => filteredByPeriod.value.filter(i => i.status === 'draft').length)
+const paidCount = computed(() => filteredByPeriod.value.filter(i => i.status === 'paid').length)
+const unpaidCount = computed(() => filteredByPeriod.value.filter(i => i.status !== 'paid').length)
+const totalAmount = computed(() => filteredByPeriod.value.reduce((sum, i) => sum + (i.total_amount || 0), 0))
+
+// Разбивка суммы по валютам (для текущего периода)
+const currencySymbols = { KZT: '₸', RUB: '₽', USD: '$', EUR: '€' }
+const currencyBreakdown = computed(() => {
+  const map = {}
+  for (const inv of filteredByPeriod.value) {
+    const code = (inv.currency || 'KZT').toUpperCase()
+    if (!map[code]) map[code] = 0
+    map[code] += inv.total_amount || 0
+  }
+  return Object.entries(map)
+    .filter(([, amount]) => amount > 0)
+    .map(([code, amount]) => ({ code, amount, symbol: currencySymbols[code] || code }))
+    .sort((a, b) => b.amount - a.amount)
+})
+
+// Финальная фильтрация таблицы: период + статус
+const filteredInvoices = computed(() => {
+  return filteredByPeriod.value.filter(i => {
+    if (activeStatusFilter.value === null) return true
+    if (activeStatusFilter.value === 'unpaid') return i.status !== 'paid'
+    return i.status === activeStatusFilter.value
   })
 })
 
@@ -680,6 +750,11 @@ const clearAllInvoicesClick = async () => {
   }
 }
 
+// Сбросить фильтр по статусу при смене периода
+watch([selectedYear, selectedMonth], () => {
+  activeStatusFilter.value = null
+})
+
 onMounted(() => {
   loadInvoices()
 })
@@ -701,83 +776,162 @@ onMounted(() => {
   letter-spacing: -0.025em;
 }
 
-/* Статистика */
+/* Статистика — Вариант 2 */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1.5rem;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1rem;
 }
 
-.stat-card {
+.stat-card-v2 {
   background: var(--surface-card);
   border: 1px solid var(--surface-border);
   border-radius: 16px;
-  padding: 1.5rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+
+.stat-card-currency {
+  cursor: default;
+}
+
+.stat-card-v2:hover:not(.stat-card-currency) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.stat-card-v2.stat-active {
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2), 0 4px 20px rgba(0,0,0,0.2);
+}
+
+/* Glow фоновый эффект */
+.card-glow {
+  position: absolute;
+  top: -28px;
+  right: -28px;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  opacity: 0.07;
+  filter: blur(28px);
+  pointer-events: none;
+}
+.glow-blue   { background: #3b82f6; }
+.glow-yellow { background: #eab308; }
+.glow-green  { background: #22c55e; }
+.glow-red    { background: #ef4444; }
+.glow-purple { background: #a855f7; }
+
+.stat-header-v2 {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
-  transition: transform 0.2s, box-shadow 0.2s;
+  justify-content: space-between;
 }
 
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-}
-
-.stat-icon-wrapper {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+.stat-icon-v2 {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.stat-icon-wrapper.blue {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.2));
-  color: #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.2);
-}
+.icon-blue   { background: rgba(59,130,246,0.15); color: #3b82f6; border: 1px solid rgba(59,130,246,0.2); }
+.icon-yellow { background: rgba(234,179,8,0.15);  color: #eab308; border: 1px solid rgba(234,179,8,0.2); }
+.icon-green  { background: rgba(34,197,94,0.15);  color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
+.icon-red    { background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+.icon-purple { background: rgba(168,85,247,0.15); color: #a855f7; border: 1px solid rgba(168,85,247,0.2); }
 
-.stat-icon-wrapper.yellow {
-  background: linear-gradient(135deg, rgba(234, 179, 8, 0.1), rgba(234, 179, 8, 0.2));
-  color: #eab308;
-  border: 1px solid rgba(234, 179, 8, 0.2);
-}
-
-.stat-icon-wrapper.green {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.2));
-  color: #22c55e;
-  border: 1px solid rgba(34, 197, 94, 0.2);
-}
-
-.stat-icon-wrapper.purple {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(168, 85, 247, 0.2));
-  color: #a855f7;
-  border: 1px solid rgba(168, 85, 247, 0.2);
-}
-
-.stat-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.stat-label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-color-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.stat-value {
+.stat-value-v2 {
   font-size: 1.75rem;
   font-weight: 700;
   line-height: 1;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
+
+.stat-label-v2 {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stat-pct-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 20px;
+}
+.pill-green { background: rgba(34,197,94,0.15); color: #4ade80; }
+.pill-red   { background: rgba(239,68,68,0.15);  color: #f87171; }
+
+.stat-period-tag {
+  font-size: 0.65rem;
+  color: var(--text-color-secondary);
+  opacity: 0.7;
+}
+
+/* Прогресс-бар */
+.stat-progress-wrap {
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: auto;
+}
+.stat-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.fill-yellow { background: linear-gradient(90deg, #eab308, #facc15); }
+.fill-green  { background: linear-gradient(90deg, #22c55e, #4ade80); }
+.fill-red    { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+/* Мультивалютная карточка */
+.currency-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.currency-row-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+}
+.currency-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.cur-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-kzt { background: #06b6d4; }
+.dot-rub  { background: #a855f7; }
+.dot-usd  { background: #22c55e; }
+.dot-eur  { background: #f59e0b; }
+.cur-sym  { font-weight: 600; }
+.sym-kzt  { color: #06b6d4; }
+.sym-rub  { color: #a855f7; }
+.sym-usd  { color: #22c55e; }
+.sym-eur  { color: #f59e0b; }
+.cur-val  { color: var(--text-color-secondary); font-variant-numeric: tabular-nums; }
 
 /* Панель действий */
 .actions-panel {
@@ -931,21 +1085,28 @@ onMounted(() => {
 }
 
 /* Адаптивность */
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
   }
-  
+}
+
+@media (max-width: 750px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
   .actions-panel {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .action-left {
     flex-direction: column;
   }
-  
+
   .year-select, .month-select {
     width: 100%;
   }
