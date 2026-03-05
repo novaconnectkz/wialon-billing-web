@@ -76,24 +76,22 @@
       </div>
     </div>
 
-    <!-- Панель действий -->
-    <div class="actions-panel">
-      <div class="action-left">
-        <Dropdown
-          v-model="selectedYear"
-          :options="years"
-          placeholder="Год"
-          class="year-select"
-        />
-        <Dropdown
-          v-model="selectedMonth"
-          :options="months"
-          optionLabel="name"
-          optionValue="value"
-          placeholder="Месяц"
-          class="month-select"
-        />
+    <!-- Выбор периода -->
+    <div class="period-bar">
+      <div class="month-pills">
+        <button
+          v-for="m in months"
+          :key="m.value"
+          class="month-pill"
+          :class="{ 'month-pill-active': selectedMonth === m.value }"
+          @click="selectedMonth = m.value"
+        >
+          {{ m.short }}
+        </button>
       </div>
+      <select class="year-select-native" v-model="selectedYear">
+        <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
+      </select>
     </div>
     
     <!-- Таблица -->
@@ -443,18 +441,18 @@ const monthNames = [
 ]
 
 const months = [
-  { name: 'Январь', value: 1 },
-  { name: 'Февраль', value: 2 },
-  { name: 'Март', value: 3 },
-  { name: 'Апрель', value: 4 },
-  { name: 'Май', value: 5 },
-  { name: 'Июнь', value: 6 },
-  { name: 'Июль', value: 7 },
-  { name: 'Август', value: 8 },
-  { name: 'Сентябрь', value: 9 },
-  { name: 'Октябрь', value: 10 },
-  { name: 'Ноябрь', value: 11 },
-  { name: 'Декабрь', value: 12 },
+  { name: 'Январь',   short: 'Янв', value: 1 },
+  { name: 'Февраль',  short: 'Фев', value: 2 },
+  { name: 'Март',     short: 'Мар', value: 3 },
+  { name: 'Апрель',   short: 'Апр', value: 4 },
+  { name: 'Май',      short: 'Май', value: 5 },
+  { name: 'Июнь',     short: 'Июн', value: 6 },
+  { name: 'Июль',     short: 'Июл', value: 7 },
+  { name: 'Август',   short: 'Авг', value: 8 },
+  { name: 'Сентябрь', short: 'Сен', value: 9 },
+  { name: 'Октябрь',  short: 'Окт', value: 10 },
+  { name: 'Ноябрь',   short: 'Ноя', value: 11 },
+  { name: 'Декабрь',  short: 'Дек', value: 12 },
 ]
 
 // Доступные месяцы для генерации (только завершённые)
@@ -933,31 +931,75 @@ onMounted(() => {
 .sym-eur  { color: #f59e0b; }
 .cur-val  { color: var(--text-color-secondary); font-variant-numeric: tabular-nums; }
 
-/* Панель действий */
-.actions-panel {
-  background: var(--surface-card);
-  border: 1px solid var(--surface-border);
-  border-radius: 12px;
-  padding: 1rem 1.5rem;
+/* Выбор периода — таблетки */
+.period-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1rem;
+  gap: 0.75rem;
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  padding: 0.6rem 0.85rem;
 }
 
-.action-left {
+.month-pills {
   display: flex;
-  gap: 1rem;
-  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.month-pills::-webkit-scrollbar { display: none; }
+
+.month-pill {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-color-secondary);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.year-select {
-  width: 130px;
+.month-pill:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-color);
 }
 
-.month-select {
-  width: 150px;
+.month-pill-active {
+  background: rgba(99, 102, 241, 0.18) !important;
+  border-color: rgba(99, 102, 241, 0.5) !important;
+  color: #a5b4fc !important;
+  font-weight: 600;
+}
+
+.year-select-native {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--surface-border);
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.3rem 0.55rem;
+  border-radius: 8px;
+  cursor: pointer;
+  outline: none;
+  flex-shrink: 0;
+  transition: border-color 0.15s;
+}
+
+.year-select-native:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.year-select-native option {
+  background: #1e293b;
 }
 
 /* Таблица */
@@ -1098,18 +1140,7 @@ onMounted(() => {
     gap: 0.75rem;
   }
 
-  .actions-panel {
-    flex-direction: column;
-    align-items: stretch;
-  }
 
-  .action-left {
-    flex-direction: column;
-  }
-
-  .year-select, .month-select {
-    width: 100%;
-  }
 }
 
 /* Диалог удаления */
