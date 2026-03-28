@@ -915,6 +915,44 @@
             <label>Телефон</label>
             <InputText v-model="accountDetailsForm.buyer_phone" class="w-full" placeholder="+7 (771) 752-99-09" />
           </div>
+          
+          <!-- Дополнительные email для рассылки -->
+          <div class="field full-width cc-emails-section">
+            <label>
+              <MailPlus :size="16" class="label-icon" />
+              Дополнительные email для рассылки
+            </label>
+            <div class="cc-chips" v-if="accountDetailsForm.cc_emails.length > 0">
+              <div class="cc-chip" v-for="(email, idx) in accountDetailsForm.cc_emails" :key="idx">
+                <span class="cc-chip-text">{{ email }}</span>
+                <button type="button" class="cc-chip-remove" @click="removeCcEmail(idx)" v-tooltip="'Удалить'">
+                  <X :size="14" />
+                </button>
+              </div>
+            </div>
+            <div class="cc-input-row" v-if="accountDetailsForm.cc_emails.length < 5">
+              <InputText 
+                v-model="newCcEmail" 
+                class="w-full" 
+                type="email" 
+                placeholder="buh@company.kz" 
+                @keydown.enter.prevent="addCcEmail"
+              />
+              <Button 
+                type="button" 
+                severity="secondary" 
+                size="small"
+                @click="addCcEmail" 
+                :disabled="!newCcEmail"
+                v-tooltip="'Добавить email'"
+              >
+                <template #icon>
+                  <Plus :size="16" />
+                </template>
+              </Button>
+            </div>
+            <small class="text-muted cc-hint">Счета будут отправляться на все указанные адреса. Максимум 5.</small>
+          </div>
           <div class="field full-width">
             <label>Адрес</label>
             <InputText v-model="accountDetailsForm.buyer_address" class="w-full" placeholder="г. Алматы, Гете, дом 17/43" />
@@ -1048,6 +1086,7 @@ import {
   FileText,
   Sparkles,
   Mail,
+  MailPlus,
   Upload,
   Eye,
   Clipboard
@@ -1186,9 +1225,11 @@ const accountDetailsForm = ref({
   buyer_address: '',
   buyer_email: '',
   buyer_phone: '',
+  cc_emails: [],
   contract_number: '',
   contract_date: null
 })
+const newCcEmail = ref('')
 
 // Группировка курсов по дате
 const groupedRates = computed(() => {
@@ -1427,16 +1468,65 @@ const runAIAnalysis = async () => {
 // Редактирование реквизитов аккаунта
 const openAccountDetails = (account) => {
   editingAccountId.value = account.id
+  // Парсим cc_emails из JSON-строки в массив
+  let ccEmails = []
+  if (account.cc_emails) {
+    try {
+      ccEmails = JSON.parse(account.cc_emails)
+    } catch (e) {
+      ccEmails = []
+    }
+  }
   accountDetailsForm.value = {
     buyer_name: account.buyer_name || '',
     buyer_bin: account.buyer_bin || '',
     buyer_address: account.buyer_address || '',
     buyer_email: account.buyer_email || '',
     buyer_phone: account.buyer_phone || '',
+    cc_emails: ccEmails,
     contract_number: account.contract_number || '',
     contract_date: account.contract_date ? new Date(account.contract_date) : null
   }
+  newCcEmail.value = ''
   showAccountDetailsDialog.value = true
+}
+
+// Управление дополнительными email
+const addCcEmail = () => {
+  const email = newCcEmail.value.trim().toLowerCase()
+  if (!email) return
+  
+  // Валидация формата email
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+  if (!emailRegex.test(email)) {
+    toast.add({ severity: 'warn', summary: 'Ошибка', detail: 'Некорректный формат email' })
+    return
+  }
+  
+  // Проверка на дубликаты
+  if (accountDetailsForm.value.cc_emails.includes(email)) {
+    toast.add({ severity: 'warn', summary: 'Внимание', detail: 'Этот email уже добавлен' })
+    return
+  }
+  
+  // Проверка на совпадение с основным email
+  if (email === accountDetailsForm.value.buyer_email?.toLowerCase()) {
+    toast.add({ severity: 'warn', summary: 'Внимание', detail: 'Этот email совпадает с основным' })
+    return
+  }
+  
+  // Лимит 5 адресов
+  if (accountDetailsForm.value.cc_emails.length >= 5) {
+    toast.add({ severity: 'warn', summary: 'Внимание', detail: 'Максимум 5 дополнительных email' })
+    return
+  }
+  
+  accountDetailsForm.value.cc_emails.push(email)
+  newCcEmail.value = ''
+}
+
+const removeCcEmail = (index) => {
+  accountDetailsForm.value.cc_emails.splice(index, 1)
 }
 
 const saveAccountDetails = async () => {
@@ -2425,5 +2515,87 @@ onMounted(() => {
 .code-block .copy-btn {
   flex-shrink: 0;
 }
+
+/* Дополнительные email для рассылки */
+.cc-emails-section {
+  border-top: 1px solid var(--surface-border);
+  padding-top: 1rem;
+  margin-top: 0.5rem;
+}
+
+.cc-emails-section > label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.label-icon {
+  opacity: 0.8;
+}
+
+.cc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.cc-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--surface-hover);
+  border: 1px solid var(--surface-border);
+  border-radius: 2rem;
+  padding: 0.3rem 0.5rem 0.3rem 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-color);
+  transition: all 0.2s ease;
+}
+
+.cc-chip:hover {
+  border-color: var(--primary-color);
+  background: rgba(var(--primary-color-rgb, 96, 165, 250), 0.1);
+}
+
+.cc-chip-text {
+  user-select: all;
+}
+
+.cc-chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+  transition: all 0.2s;
+}
+
+.cc-chip-remove:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.cc-input-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.cc-hint {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  opacity: 0.7;
+}
 </style>
+
 
