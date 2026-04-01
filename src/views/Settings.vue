@@ -229,12 +229,30 @@
         <p class="info-text">
           Курсы загружаются автоматически ежедневно в 04:00 UTC из Национального банка Казахстана.
         </p>
-        <DataTable 
-          :value="groupedRates" 
+
+        <!-- График -->
+        <div class="rates-chart-wrap">
+          <div class="rates-period-btns">
+            <button
+              v-for="p in ratePeriods"
+              :key="p.value"
+              class="period-btn"
+              :class="{ active: ratesChartPeriod === p.value }"
+              @click="ratesChartPeriod = p.value"
+            >{{ p.label }}</button>
+          </div>
+          <div class="rates-chart-container">
+            <Line :data="ratesChartData" :options="ratesChartOptions" />
+          </div>
+        </div>
+
+        <DataTable
+          :value="groupedRates"
           :loading="loading"
           responsiveLayout="scroll"
           :paginator="true"
           :rows="30"
+          class="rates-table"
         >
           <Column field="date" header="Дата" :sortable="true">
             <template #body="{ data }">
@@ -1049,6 +1067,20 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import Tag from 'primevue/tag'
 import Calendar from 'primevue/calendar'
+import { Line } from 'vue-chartjs'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title as ChartTitle,
+  Tooltip as ChartTooltip,
+  Legend as ChartLegend,
+  Filler
+} from 'chart.js'
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ChartTitle, ChartTooltip, ChartLegend, Filler)
 import Password from 'primevue/password'
 import InputSwitch from 'primevue/inputswitch'
 import { 
@@ -1119,6 +1151,16 @@ const modules = ref([])
 const settings = ref({ wialon_type: 'hosting', unit_price: 2, currency: 'EUR' })
 const exchangeRates = ref([])
 const connections = ref([])
+
+// График курсов
+const ratesChartPeriod = ref('month')
+const ratePeriods = [
+  { label: 'Неделя', value: 'week' },
+  { label: 'Месяц', value: 'month' },
+  { label: '3 мес', value: '3month' },
+  { label: '6 мес', value: '6month' },
+  { label: 'Год', value: 'year' }
+]
 
 // Массовая привязка модулей
 const selectedAccounts = ref([])
@@ -1252,6 +1294,98 @@ const groupedRates = computed(() => {
     return new Date(y2, m2 - 1, d2) - new Date(y1, m1 - 1, d1)
   })
 })
+
+const ratesChartData = computed(() => {
+  const periodDays = { week: 7, month: 30, '3month': 90, '6month': 180, year: 365 }
+  const days = periodDays[ratesChartPeriod.value]
+  const cutoff = new Date(Date.now() - days * 86400000)
+
+  const grouped = {}
+  for (const rate of exchangeRates.value) {
+    const d = new Date(rate.rate_date)
+    if (d < cutoff) continue
+    const key = rate.rate_date.substring(0, 10)
+    if (!grouped[key]) grouped[key] = { date: key }
+    if (rate.currency_from === 'EUR') grouped[key].eur = rate.rate
+    else if (rate.currency_from === 'RUB') grouped[key].rub = rate.rate
+  }
+
+  const sorted = Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date))
+  const noPoints = sorted.length > 60
+
+  const labels = sorted.map(r => {
+    const [y, m, d] = r.date.split('-')
+    return `${d}.${m}.${y}`
+  })
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: 'EUR → KZT',
+        data: sorted.map(r => r.eur ?? null),
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.08)',
+        yAxisID: 'yEur',
+        tension: 0.3,
+        fill: true,
+        pointRadius: noPoints ? 0 : 3,
+        pointHoverRadius: 5,
+        spanGaps: true
+      },
+      {
+        label: 'RUB → KZT',
+        data: sorted.map(r => r.rub ?? null),
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245,158,11,0.08)',
+        yAxisID: 'yRub',
+        tension: 0.3,
+        fill: true,
+        pointRadius: noPoints ? 0 : 3,
+        pointHoverRadius: 5,
+        spanGaps: true
+      }
+    ]
+  }
+})
+
+const ratesChartOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  interaction: { mode: 'index', intersect: false },
+  plugins: {
+    legend: { position: 'top' },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => {
+          const val = ctx.parsed.y
+          if (val == null) return null
+          return ctx.datasetIndex === 0
+            ? `EUR: ${val.toFixed(2)} ₸`
+            : `RUB: ${val.toFixed(4)} ₸`
+        }
+      }
+    }
+  },
+  scales: {
+    x: {
+      ticks: { maxTicksLimit: 10, maxRotation: 0 }
+    },
+    yEur: {
+      type: 'linear',
+      position: 'left',
+      title: { display: true, text: 'EUR → KZT' },
+      ticks: { callback: v => v.toFixed(0) + ' ₸' }
+    },
+    yRub: {
+      type: 'linear',
+      position: 'right',
+      title: { display: true, text: 'RUB → KZT' },
+      grid: { drawOnChartArea: false },
+      ticks: { callback: v => v.toFixed(2) + ' ₸' }
+    }
+  }
+}))
 
 // Модуль форма
 const showModuleDialog = ref(false)
@@ -2595,6 +2729,48 @@ onMounted(() => {
   margin-top: 0.4rem;
   font-size: 0.78rem;
   opacity: 0.7;
+}
+
+/* График курсов */
+.rates-chart-wrap {
+  margin-bottom: 2rem;
+}
+
+.rates-period-btns {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.period-btn {
+  padding: 0.35rem 0.85rem;
+  border-radius: 6px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-card);
+  color: var(--text-color-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.period-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-color);
+}
+
+.period-btn.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #fff;
+  font-weight: 600;
+}
+
+.rates-chart-container {
+  height: 300px;
+}
+
+.rates-table {
+  margin-top: 0.5rem;
 }
 </style>
 
